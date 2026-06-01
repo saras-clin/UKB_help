@@ -338,11 +338,29 @@ message("Prescriptions after date parsing: ", nrow(prescriptions), " from ",
 # =============================================================================
 # Run these checks before saving to catch issues that would affect analysis.
 
-# Check 1: eid is integer — required for safe joins with the main dataset
-stopifnot("eid must be integer" = is.integer(prescriptions$eid))
-message("OK: eid is integer.")
+# Check 1: Column names and types
+# Shows every column name and its R class. eid must be integer; date must be
+# Date. If either is wrong, the coercion in Step 6 silently failed.
+message("Output columns and types:")
+print(sapply(prescriptions, class))
 
+expected_cols <- c("eid", "date", "drug_name", "bnf_code", "drug_class")
+missing_cols  <- setdiff(expected_cols, names(prescriptions))
+if (length(missing_cols) > 0) {
+  warning("Missing expected columns: ", paste(missing_cols, collapse = ", "))
+}
+if (!is.integer(prescriptions$eid)) {
+  warning("eid is ", class(prescriptions$eid), ", not integer. ",
+          "Re-run: prescriptions <- prescriptions |> dplyr::mutate(eid = as.integer(eid))")
+}
+if (!inherits(prescriptions$date, "Date")) {
+  warning("date is ", class(prescriptions$date), ", not Date. ",
+          "Check the as.Date(issue_date, format = '%d/%m/%Y') line in Step 6.")
+}
+
+#------------------------------------------------------------------------------
 # Check 2: Date range sanity
+#------------------------------------------------------------------------------
 # UKB GP prescription records run approximately 1990–2017.
 # Dates after today indicate a parsing problem (check the format = "%d/%m/%Y" line).
 date_range <- range(prescriptions$date, na.rm = TRUE)
@@ -352,7 +370,9 @@ if (date_range[2] > Sys.Date()) {
           "(expected format: '%d/%m/%Y').")
 }
 
+#------------------------------------------------------------------------------
 # Check 3: "other_matched" rows
+#------------------------------------------------------------------------------
 # These matched DRUG_PATTERN but were not assigned a named class. A large
 # count suggests your case_when() blocks are incomplete — inspect the drug
 # names and add a new block for any that should have their own class.
@@ -370,11 +390,15 @@ if (n_other > 0) {
   message("OK: all rows have a named drug class.")
 }
 
+#------------------------------------------------------------------------------
 # Check 4: Drug class distribution
+#------------------------------------------------------------------------------
 message("Drug class breakdown:")
 print(prescriptions |> dplyr::count(drug_class, sort = TRUE))
 
+#------------------------------------------------------------------------------
 # Check 5: Participant coverage
+#------------------------------------------------------------------------------
 message(length(unique(prescriptions$eid)),
         " participants have at least one prescription. ",
         "Compare to your cohort size to assess coverage.")
