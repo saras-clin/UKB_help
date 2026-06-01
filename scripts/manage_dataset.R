@@ -22,7 +22,7 @@
 # Inputs  : data/dataset.parquet   (from setup.R step 5)
 # Outputs : data/dataset_clean.parquet
 #
-# Dependencies: dplyr, lubridate, arrow, here, tidyr, ukbAid
+# Dependencies: dplyr, arrow, here, tidyr, ukbAid
 # =============================================================================
 #
 # Contents:
@@ -36,7 +36,6 @@
 # =============================================================================
 
 library(dplyr)
-library(lubridate)
 library(arrow)
 library(here)
 library(tidyr)
@@ -56,8 +55,6 @@ dataset <- arrow::read_parquet(here::here("data/dataset.parquet"))
 #   https://biobank.ndph.ox.ac.uk/showcase/
 
 dplyr::glimpse(dataset)    # column names, types, and a sample of values
-names(dataset)             # all column names
-sapply(dataset, class)     # type of each column as a named vector
 
 
 # =============================================================================
@@ -93,12 +90,9 @@ dataset <- rename_variables(dataset)
 # =============================================================================
 # Step 3: Convert variable types
 # =============================================================================
-# !! EXAMPLE — adjust to your actual column names after step 2 !!
-# After loading from parquet, check that dates loaded as Date (not character)
-# and IDs as integer (not numeric or character).
-#
-# To see all types at once:
-#   sapply(dataset, class)
+# !! EXAMPLE — run Step 1 first (glimpse), then keep only the lines below
+# that your data actually needs. Do not convert a column that is already
+# the right type.
 
 convert_variable_types <- function(data) {
   data |>
@@ -116,9 +110,6 @@ convert_variable_types <- function(data) {
 }
 
 dataset <- convert_variable_types(dataset)
-
-message("Types after conversion:")
-print(sapply(dataset, class))
 
 
 # =============================================================================
@@ -199,7 +190,6 @@ recode_variables <- function(data) {
 }
 
 dataset <- recode_variables(dataset)
-message("Recoded categorical variables.")
 
 
 # =============================================================================
@@ -237,9 +227,6 @@ create_derived_variables <- function(data) {
 }
 
 dataset <- create_derived_variables(dataset)
-message("Age at baseline: mean = ",
-        round(mean(dataset$age_baseline, na.rm = TRUE), 1),
-        " years (expected range 40–69 for UKB baseline cohort)")
 
 
 # =============================================================================
@@ -284,29 +271,12 @@ print(missingness |> dplyr::filter(prop_missing > 0.10))
 # -----------------------------------------------------------------------
 # UKB recruited participants aged 40–69 at baseline (2006–2010).
 # Values outside this range indicate a date or derivation error.
-if ("age_baseline" %in% names(dataset)) {
-  age_range <- range(dataset$age_baseline, na.rm = TRUE)
-  message("Age at baseline: min = ", round(age_range[1], 1),
-          ", max = ", round(age_range[2], 1))
-  if (age_range[1] < 35 || age_range[2] > 80) {
-    warning("Age at baseline outside expected range (40–69). ",
-            "Check year_birth and date_baseline.")
-  }
-}
-
-# -----------------------------------------------------------------------
-# 6.4  Factor level distributions
-# -----------------------------------------------------------------------
-# A large "Unknown" count in a recoded factor suggests UKB changed the
-# coding scheme, or codes appear in your data that are not in the case_when()
-# blocks. Inspect raw values with: table(dataset$sex, useNA = "ifany")
-if ("sex_cat" %in% names(dataset)) {
-  message("Sex:")
-  print(table(dataset$sex_cat, useNA = "ifany"))
-}
-if ("ethnicity_group" %in% names(dataset)) {
-  message("Ethnicity:")
-  print(table(dataset$ethnicity_group, useNA = "ifany"))
+age_range <- range(dataset$age_baseline, na.rm = TRUE)
+message("Age at baseline: mean = ", round(mean(dataset$age_baseline, na.rm = TRUE), 1),
+        ", min = ", round(age_range[1], 1), ", max = ", round(age_range[2], 1))
+if (age_range[1] < 35 || age_range[2] > 80) {
+  warning("Age at baseline outside expected range (40–69). ",
+          "Check year_birth and date_baseline.")
 }
 
 
@@ -319,6 +289,3 @@ ukbAid::rap_copy_to(
   local_path = here::here("data/dataset_clean.parquet"),
   rap_path   = "/users/your_username/dataset_clean.parquet"  # Replace with your username
 )
-
-message("Saved: ", nrow(dataset), " participants, ",
-        ncol(dataset), " variables → data/dataset_clean.parquet")
