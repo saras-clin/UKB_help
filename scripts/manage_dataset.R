@@ -88,8 +88,6 @@ rename_variables <- function(data) {
 }
 
 dataset <- rename_variables(dataset)
-message("Renamed columns present: ",
-        paste(names(dataset), collapse = ", "))
 
 
 # =============================================================================
