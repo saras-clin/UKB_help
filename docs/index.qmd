@@ -51,10 +51,11 @@ startup sequence is in [scripts/setup.R](../scripts/setup.R).
 :::
 
 ::: {.callout-important}
-### Run `export_tables()` once before your first GP or HES extraction
+### `ukbrapR` documentation: run `export_tables()` once before GP or HES extraction
 
-Before `ukbrapR::get_diagnoses()` can find any data, run this **once per
-project** to export the linked clinical tables to RAP persistent storage:
+According to the [`ukbrapR` README on GitHub](https://github.com/lcpilling/ukbrapR/blob/main/README.md),
+`get_diagnoses()` requires the linked tables to be exported to RAP persistent
+storage first — once per project:
 
 ```r
 ukbrapR::export_tables()
@@ -62,6 +63,15 @@ ukbrapR::export_tables()
 
 This takes several minutes and exports approximately 10 GB. You never need
 to repeat it. See [Getting Started](getting-started-ukb.qmd) for details.
+:::
+
+::: {.callout-note}
+### Note for discussion
+
+UKDC's extraction scripts call `get_diagnoses()` without first running
+`export_tables()` and return diagnoses correctly. Whether this step is truly
+required or is already handled upstream is unclear. **To clarify with
+supervisors.**
 :::
 
 ---

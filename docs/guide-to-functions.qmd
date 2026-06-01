@@ -21,7 +21,7 @@ knowing.
 | `pak::pak()` | `setup.R` | Installs R packages, including those on GitHub |
 | `ukbAid::proj_setup_rap()` | `setup.R` | Connects your RAP session to your GitHub project |
 | `ukbAid::proj_create_dataset()` | `setup.R` | Extracts UKB variables by Field ID into a CSV |
-| `ukbrapR::export_tables()` | `setup.R` section 6 | Exports linked UKB tables to RAP storage — **run once before any GP or HES extraction** |
+| `ukbrapR::export_tables()` | `setup.R` section 6 | Exports linked UKB tables to RAP storage — [stated as prerequisite in ukbrapR docs](https://github.com/lcpilling/ukbrapR/blob/main/README.md); see note for discussion |
 | `ukbrapR::get_diagnoses()` | `extract_diagnoses.R` | Queries GP clinical and HES records for a list of codes |
 | `arrow::open_delim_dataset()` | `extract_medications.R` | Opens a large file lazily — no data enters memory yet |
 | `dplyr::collect()` | `extract_medications.R` | Executes a lazy Arrow query and returns a data frame |
@@ -164,28 +164,29 @@ session; the RAP copy survives session reset.
 
 **What it does:** Submits a table-exporter job on RAP that copies the UKB
 linked clinical tables — GP clinical records, Hospital Episode Statistics,
-cancer registry, and death records — to your RAP persistent storage. This
-is a **one-time prerequisite per RAP project**. Without it, `get_diagnoses()`
-finds no data.
-
-**Analogy:** Asking the archive to make photocopies of all the relevant
-filing cabinets and store them in a room where you can work. The copying
-takes time (minutes), but afterwards you can query the copies instantly in
-every future session.
+cancer registry, and death records — to your RAP persistent storage.
 
 ```r
-# Run once per project, then comment out.
-# Takes several minutes; exports ~10 GB of linked data.
 ukbrapR::export_tables()
 ```
 
 ::: {.callout-important}
-This function must be run **before** `get_diagnoses()` will return any data.
-Run it once when setting up a new project. You do not need to run it again
-in future sessions — the exported tables persist in RAP storage.
+### `ukbrapR` documentation states this is a prerequisite
 
-Place this call in `setup.R` section 6 (as shown), uncomment it, run it
-once, then comment it out again.
+According to the [`ukbrapR` README on GitHub](https://github.com/lcpilling/ukbrapR/blob/main/README.md),
+this must be run **once per project** before `get_diagnoses()` will return
+any data. The exported tables (~10 GB) persist in RAP storage so you never
+need to repeat it.
+:::
+
+::: {.callout-note}
+### Note for discussion
+
+UKDC's extraction scripts call `get_diagnoses()` without first running
+`export_tables()` and diagnoses are returned correctly. It is unclear whether
+the linked tables were already present in this project's RAP storage, or
+whether this step is not actually required in this setup. **To clarify with
+supervisors before advising others to run or skip this step.**
 :::
 
 ---

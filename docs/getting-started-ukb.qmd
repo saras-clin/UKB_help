@@ -15,7 +15,7 @@ be connected to your project and the necessary packages need to be installed.
 The RAP environment resets when a session ends — packages do not persist.
 
 **Start with ukbAid.** If you have not already done so, complete the
-[ukbAid initial setup](https://steno-aarhus.github.io/ukbAid/articles/initial-setup.html).
+[ukbAid initial setup](https://steno-aarhus.github.io/ukbAid/initial-setup.html).
 This covers requesting RAP access, configuring your GitHub personal access
 token, and creating your project repository. None of the scripts on this site
 will work without that foundation.
@@ -31,9 +31,10 @@ structured in numbered steps — not all steps are needed every time:
 - **Steps 6–8** (extract, join, save): run when you need that specific step
 
 ::: {.callout-important}
-### Export linked tables once before your first extraction
+### `ukbrapR` documentation: run `export_tables()` before GP or HES extraction
 
-Before extracting any GP or HES data for the first time, run this once:
+According to the [`ukbrapR` README on GitHub](https://github.com/lcpilling/ukbrapR/blob/main/README.md),
+before calling `get_diagnoses()` for the first time you must run:
 
 ```r
 ukbrapR::export_tables()
@@ -41,15 +42,26 @@ ukbrapR::export_tables()
 
 This submits a job that copies approximately 10 GB of linked clinical data
 (GP records, HES, cancer registry, death records) to RAP persistent storage.
-It takes several minutes. You never need to repeat it — subsequent sessions
-read from the exported files automatically.
+It takes several minutes. You only need to do it once per project — subsequent
+sessions read from the exported files automatically.
+:::
+
+::: {.callout-note}
+### Note for discussion
+
+UKDC's extraction scripts call `ukbrapR::get_diagnoses()` directly without
+first running `export_tables()`, and diagnoses are returned correctly. It is
+unclear whether the linked tables were already present in this project's RAP
+storage from a prior step, or whether `export_tables()` is not actually
+required in this setup. **To clarify with supervisors before advising others
+to run or skip this step.**
 :::
 
 ---
 
 ## Extract diagnoses and medication data
 
-Once your session is set up and `export_tables()` has been run, you can
+Once your session is set up, you can
 extract clinical events for your study population. Two ready-to-use scripts
 are available.
 

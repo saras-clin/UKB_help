@@ -13,9 +13,19 @@ a diagnostic code list CSV and medication regex patterns. It explains the
 required format, how to create them, where to find validated code lists, and
 how to pass them to the scripts.
 
+- [Part 1: Diagnostic code lists](#sec-diagnostic)
+- [Part 2: Medication extraction](#sec-medication)
+
 ---
 
 ## Part 1: Diagnostic code lists {#sec-diagnostic}
+
+You can either **create your own CSV code list** or **use an existing validated
+one**. The sections below first cover the required format and columns you need
+if building your own, then link to ready-made code lists you can download and
+adapt.
+
+---
 
 ### What is a diagnostic code list?
 
@@ -116,10 +126,26 @@ codes <- readr::read_csv("data-raw/parkinson_codes.csv", show_col_types = FALSE)
 
 ---
 
-### Where to get validated code lists
+### Validation checklist before running
+
+Before passing your code list to the extraction script, check these five
+things:
+
+::: {.callout-warning}
+1. **No trailing spaces in codes.** A code `"G20 "` (with a space) will not match `"G20"`. The script runs `trimws()` automatically, but check your source data.
+2. **Codes are uppercase.** The script runs `toupper()` automatically, but verify your source data if you are not sure.
+3. **`vocab_id` spelling is exact.** Accepted values: `Read2`, `CTV3`, `ICD10`, `ICD9`. No hyphens, no lowercase.
+4. **`condition` label is consistent.** All codes for the same condition must share the same `condition` value. A typo creates a second condition group in the output.
+5. **ICD-10 codes without dots.** Use `E11`, not `E11.0`. ukbrapR matches on the first three characters of the ICD code stored in HES.
+:::
+
+---
+
+### Existing validated code lists
 
 Building a code list from scratch is time-consuming and easy to do
-incompletely. For most common conditions, validated lists already exist.
+incompletely. For most common conditions, validated lists already exist that
+you can download and adapt.
 
 ::: {.callout-tip}
 ### Prigge et al. MLTC code lists (recommended starting point)
@@ -145,21 +171,6 @@ Other resources:
 - **CALIBER Phenotype Library** — [caliberresearch.org/portal](https://caliberresearch.org/portal) — validated algorithms for 300+ conditions across multiple coding systems.
 - **ClinicalCodes.org** — [clinicalcodes.rss.mhs.man.ac.uk](https://clinicalcodes.rss.mhs.man.ac.uk) — searchable repository of published code lists.
 - **UKB Data Showcase** — [biobank.ndph.ox.ac.uk/showcase](https://biobank.ndph.ox.ac.uk/showcase/) — use to confirm that a code is present in the UKB GP data.
-
----
-
-### Validation checklist before running
-
-Before passing your code list to the extraction script, check these five
-things:
-
-::: {.callout-warning}
-1. **No trailing spaces in codes.** A code `"G20 "` (with a space) will not match `"G20"`. The script runs `trimws()` automatically, but check your source data.
-2. **Codes are uppercase.** The script runs `toupper()` automatically, but verify your source data if you are not sure.
-3. **`vocab_id` spelling is exact.** Accepted values: `Read2`, `CTV3`, `ICD10`, `ICD9`. No hyphens, no lowercase.
-4. **`condition` label is consistent.** All codes for the same condition must share the same `condition` value. A typo creates a second condition group in the output.
-5. **ICD-10 codes without dots.** Use `E11`, not `E11.0`. ukbrapR matches on the first three characters of the ICD code stored in HES.
-:::
 
 ---
 
