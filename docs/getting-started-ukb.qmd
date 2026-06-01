@@ -20,16 +20,20 @@ This covers requesting RAP access, configuring your GitHub personal access
 token, and creating your project repository. None of the scripts on this site
 will work without that foundation.
 
-**At the start of every RAP session**, run
-[`scripts/setup.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/setup.R).
-This script installs packages, reconnects your session to GitHub, loads your
-saved dataset, and guides you through the full workflow from raw extraction
-to saving your results.
+Open
+[`scripts/setup.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/setup.R)
+and run only the sections relevant to your current session. The script is
+structured in numbered steps — not all steps are needed every time:
+
+- **Steps 1–3** (packages, GitHub, libraries): run every session
+- **Step 4** (create dataset): run once per project, then comment out
+- **Step 5** (load dataset): run every session after step 4 is done
+- **Steps 6–8** (extract, join, save): run when you need that specific step
 
 ::: {.callout-important}
 ### Export linked tables once before your first extraction
 
-Before extracting any GP or HES data, run this **once per RAP project**:
+Before extracting any GP or HES data for the first time, run this once:
 
 ```r
 ukbrapR::export_tables()
