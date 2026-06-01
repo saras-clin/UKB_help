@@ -134,19 +134,19 @@ fields, `p<field_id>_i<instance>` for multi-instance fields.
 | Column | Field ID | Type | Description | Notes |
 |---|---|---|---|---|
 | **`eid`** | — | integer | Participant identifier | Universal join key |
-| **`p31`** | 31 | integer | Sex | 0 = Female, 1 = Male |
-| **`p34`** | 34 | integer | Year of birth | Use with `p52` to approximate date of birth |
-| **`p52`** | 52 | integer | Month of birth | 1–12. Combine with `p34` to approximate date of birth (day set to 15). |
-| **`p53_i0`** | 53, instance 0 | Date | Assessment centre date, visit 0 | Initial assessment (2006–2010). Standard baseline date for incident/prevalent classification. |
-| **`p53_i1`** | 53, instance 1 | Date | Assessment centre date, visit 1 | First repeat visit (2012–2013). Not all participants attended. |
-| **`p53_i2`** | 53, instance 2 | Date | Assessment centre date, visit 2 | Second repeat visit (2014–2020). Sparse. |
-| **`p42040`** | 42040 | integer | Number of GP clinical event records | Non-zero if participant has linked GP data. Use to derive `has_gp_data`. |
-| **`p42039`** | 42039 | integer | Number of GP prescription records | Non-zero if participant has linked prescription data. |
-| **`p42038`** | 42038 | integer | Number of GP registration records | Non-zero if participant has registration record. |
-| `p30750_i0` | 30750, instance 0 | numeric | HbA1c (mmol/mol), visit 0 | Raw assay value. Matched by assay date `p30751_i0`. |
-| `p30751_i0` | 30751, instance 0 | Date | HbA1c assay date, visit 0 | Assay date for `p30750_i0`. |
-| `p30740_i0` | 30740, instance 0 | numeric | Random glucose (mmol/L), visit 0 | Non-fasting. Do not apply fasting glucose thresholds. |
-| `p30741_i0` | 30741, instance 0 | Date | Glucose assay date, visit 0 | Assay date for `p30740_i0`. |
+| **`p31`** | [31](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=31) | integer | Sex | 0 = Female, 1 = Male |
+| **`p34`** | [34](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=34) | integer | Year of birth | Use with `p52` to approximate date of birth |
+| **`p52`** | [52](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=52) | integer | Month of birth | 1–12. Combine with `p34` to approximate date of birth (day set to 15). |
+| **`p53_i0`** | [53](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=53), instance 0 | Date | Assessment centre date, visit 0 | Initial assessment (2006–2010). Standard baseline date for incident/prevalent classification. |
+| **`p53_i1`** | [53](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=53), instance 1 | Date | Assessment centre date, visit 1 | First repeat visit (2012–2013). Not all participants attended. |
+| **`p53_i2`** | [53](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=53), instance 2 | Date | Assessment centre date, visit 2 | Second repeat visit (2014–2020). Sparse. |
+| **`p42040`** | [42040](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=42040) | integer | Number of GP clinical event records | Non-zero if participant has linked GP data. Use to derive `has_gp_data`. |
+| **`p42039`** | [42039](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=42039) | integer | Number of GP prescription records | Non-zero if participant has linked prescription data. |
+| **`p42038`** | [42038](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=42038) | integer | Number of GP registration records | Non-zero if participant has registration record. |
+| `p30750_i0` | [30750](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=30750), instance 0 | numeric | HbA1c (mmol/mol), visit 0 | Raw assay value. Matched by assay date `p30751_i0`. |
+| `p30751_i0` | [30751](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=30751), instance 0 | Date | HbA1c assay date, visit 0 | Assay date for `p30750_i0`. |
+| `p30740_i0` | [30740](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=30740), instance 0 | numeric | Random glucose (mmol/L), visit 0 | Non-fasting. Do not apply fasting glucose thresholds. |
+| `p30741_i0` | [30741](https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=30741), instance 0 | Date | Glucose assay date, visit 0 | Assay date for `p30740_i0`. |
 
 ::: {.callout-note}
 ### Deriving date of birth
