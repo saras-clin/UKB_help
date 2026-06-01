@@ -1,0 +1,316 @@
+---
+title: "Code Lists Guide"
+subtitle: "Building diagnostic code lists and medication patterns for UK Biobank extraction"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 3
+---
+
+This page covers the two types of input files the extraction scripts need:
+a diagnostic code list CSV and medication regex patterns. It explains the
+required format, how to create them, where to find validated code lists, and
+how to pass them to the scripts.
+
+---
+
+## Part 1: Diagnostic code lists {#sec-diagnostic}
+
+### What is a diagnostic code list?
+
+UK Biobank GP records use two coding systems: **Read version 2** and **CTV3**
+(Clinical Terms Version 3). Hospital records use **ICD-10** and, for records
+before ~1995, **ICD-9**. A code list is simply a table that tells the
+extraction script which codes correspond to the condition you want to find.
+
+The script [extract_diagnoses.R](../scripts/extract_diagnoses.R)
+reads your code list and passes it to `ukbrapR::get_diagnoses()`, which
+searches the UKB database for matching records.
+
+---
+
+### The code list schema
+
+Your CSV must contain at least the three required columns. The remaining four
+columns are useful but will not cause errors if absent.
+
+| Column | Required? | Example value | What it controls |
+|---|---|---|---|
+| `code` | **Required** | `G20..` | The diagnostic code to search for. Must be uppercase, no trailing whitespace. |
+| `condition` | **Required** | `parkinson` | A short label grouping codes for the same condition. Used to tag extracted events. All codes for one condition should share the same label. |
+| `vocab_id` | **Required** | `Read2` | Which coding system the code belongs to. Must be one of: `Read2`, `CTV3`, `ICD10`, `ICD9`. |
+| `Description` | Nice to have | `Parkinson's disease` | Human-readable description. Useful for review; not used by the script. |
+| `Sub-condition` | Nice to have | `parkinson_confirmed` | A finer-grained label within a condition (e.g. to separate definite from possible cases). Not used by the script. |
+| `Diagnosis` | Nice to have | `Parkinson's disease` | Longer clinical name. Not used by the script. |
+| `source` | Nice to have | `ClinicalCodes.org` | Where the code came from. Useful for audit. |
+
+::: {.callout-important}
+### vocab_id must match exactly
+
+The `vocab_id` values must be spelled exactly as shown. A common mistake is
+using "ICD-10" (with a hyphen) from a published code list. The script
+corrects "ICD-10" to "ICD10" and "ICD-9" to "ICD9" automatically, but
+"icd10" (lowercase) or "ICD 10" (with a space) will cause silent failures
+where no records are returned.
+
+The script prints the vocabularies it found in your list before querying —
+check that message to confirm they were recognised.
+:::
+
+---
+
+### Worked example: a minimal code list
+
+Below is a small example for Parkinson's disease, covering all four
+vocabulary types. This is the format to use as a template.
+
+```
+condition,vocab_id,code,Description
+parkinson,Read2,F12..,"Parkinson's disease"
+parkinson,Read2,F1200,"Parkinson's disease NOS"
+parkinson,CTV3,F1200,"Parkinson's disease"
+parkinson,CTV3,XE1cO,"Parkinson's disease - control"
+parkinson,ICD10,G20,"Parkinson's disease"
+parkinson,ICD10,G21,"Secondary parkinsonism"
+parkinson,ICD9,332,"Parkinson's disease"
+```
+
+Save this as a CSV file (e.g. `data-raw/parkinson_codes.csv`), then pass
+it to the extraction script:
+
+```r
+codes <- readr::read_csv("data-raw/parkinson_codes.csv", show_col_types = FALSE)
+# Then follow the steps in extract_diagnoses.R
+```
+
+---
+
+### Where to get validated code lists
+
+Building a code list from scratch is time-consuming and easy to do
+incompletely. For most common conditions, validated lists already exist.
+
+::: {.callout-tip}
+### Prigge et al. MLTC code lists (recommended starting point)
+
+The most comprehensive freely available resource for Read v2 and CTV3 code
+lists is:
+
+**Prigge R, Fleetwood KJ, Jackson CA, Mercer SW, Kelly PA, Sudlow C, et al.**
+Robustly measuring multimorbidity using disparate linked datasets.
+*Commun Med (London).* 2025 Jul 8;5(1):283.
+
+Repository: [https://github.com/rprigge-uoe/mltc-codelists](https://github.com/rprigge-uoe/mltc-codelists)
+
+This repository provides directly downloadable Read v2 and CTV3 diagnostic
+code lists for **212 conditions**, developed and validated for use with
+linked primary care data in UK cohort studies. The column structure is close
+to the schema above; you will need to add ICD-10 codes separately if you
+also want to query HES records.
+:::
+
+Other resources:
+
+- **CALIBER Phenotype Library** — [caliberresearch.org/portal](https://caliberresearch.org/portal) — validated algorithms for 300+ conditions across multiple coding systems.
+- **ClinicalCodes.org** — [clinicalcodes.rss.mhs.man.ac.uk](https://clinicalcodes.rss.mhs.man.ac.uk) — searchable repository of published code lists.
+- **UKB Data Showcase** — [biobank.ndph.ox.ac.uk/showcase](https://biobank.ndph.ox.ac.uk/showcase/) — use to confirm that a code is present in the UKB GP data.
+
+---
+
+### Validation checklist before running
+
+Before passing your code list to the extraction script, check these five
+things:
+
+::: {.callout-warning}
+1. **No trailing spaces in codes.** A code `"G20 "` (with a space) will not match `"G20"`. The script runs `trimws()` automatically, but check your source data.
+2. **Codes are uppercase.** The script runs `toupper()` automatically, but verify your source data if you are not sure.
+3. **`vocab_id` spelling is exact.** Accepted values: `Read2`, `CTV3`, `ICD10`, `ICD9`. No hyphens, no lowercase.
+4. **`condition` label is consistent.** All codes for the same condition must share the same `condition` value. A typo creates a second condition group in the output.
+5. **ICD-10 codes without dots.** Use `E11`, not `E11.0`. ukbrapR matches on the first three characters of the ICD code stored in HES.
+:::
+
+---
+
+## Part 2: Medication extraction {#sec-medication}
+
+### Two approaches — and why you need both
+
+The GP prescriptions file (`gp_scripts`) has two columns you can use to
+identify drug prescriptions:
+
+| Column | What it contains | Limitation |
+|---|---|---|
+| `bnf_code` | BNF (British National Formulary) chapter code | Approximately **23% of rows** have no BNF code recorded. BNF-only filtering silently misses these. |
+| `drug_name` | Free-text drug name as entered by the GP system | Inconsistent: abbreviations, brand names, and formatting vary by practice and system. Needs careful regex design. |
+
+Using **both approaches together** is recommended. The two queries are
+designed to be mutually exclusive, so there is no double-counting:
+
+- **Approach 1** (BNF filter): collect all rows where `bnf_code` starts with
+  your chapter prefix. This captures all well-coded prescriptions quickly.
+- **Approach 2** (drug-name regex): apply a pattern to all rows that were
+  *not* captured by Approach 1 (missing, empty, or different BNF chapter).
+  This captures what BNF misses.
+
+This principle is not specific to diabetes — it applies to any drug class
+you want to extract from UK Biobank prescriptions.
+
+---
+
+### BNF chapter codes
+
+The BNF organises drugs into chapters by therapeutic class. To find the
+relevant chapter for your drugs, search the
+[NHS BNF online](https://bnf.nice.org.uk) or check the `bnf_code` values
+in a sample of your drug's prescriptions.
+
+Common chapters relevant to chronic disease research:
+
+| BNF prefix | Drug class |
+|---|---|
+| `0601` | Drugs used in diabetes |
+| `0205` | Drugs affecting the renin-angiotensin system (ACE inhibitors, ARBs) |
+| `0206` | Diuretics |
+| `0212` | Lipid-regulating drugs (statins, fibrates) |
+| `0401` | Antidepressants |
+| `0403` | Antipsychotics |
+| `0202` | Antihypertensives (beta-blockers) |
+
+Set `BNF_PREFIX` in [extract_medications.R](../scripts/extract_medications.R)
+to the prefix for your drug class.
+
+---
+
+### Writing and testing a drug-name regex pattern
+
+The `drug_name` column contains free-text entries that vary widely. A
+pattern for statins, for example, might look like:
+
+```r
+DRUG_PATTERN <- paste(
+  "simvastatin|zocor",
+  "atorvastatin|lipitor",
+  "rosuvastatin|crestor",
+  "pravastatin|lipostat",
+  "fluvastatin|lescol",
+  sep = "|"
+)
+```
+
+Include both generic names and brand names. The match is case-insensitive.
+
+::: {.callout-warning}
+### Always test your pattern on a sample before running on 57 million rows
+
+Step 3 in [extract_medications.R](../scripts/extract_medications.R) shows
+how to pull a 1000-row sample and inspect which drug names match and which
+do not. This takes seconds and can save you from running a flawed pattern
+across the full file.
+
+```r
+sample_names <- ds |>
+  dplyr::select(drug_name) |>
+  head(1000) |>
+  dplyr::collect() |>
+  dplyr::pull(drug_name)
+
+# Check what matches:
+matched <- sample_names[stringr::str_detect(
+  sample_names,
+  stringr::regex(DRUG_PATTERN, ignore_case = TRUE)
+)]
+```
+
+Look at both the matched names (check for false positives) and the
+unmatched names (check for drugs you missed).
+:::
+
+---
+
+### Classifying prescriptions after extraction
+
+After extracting raw prescriptions, you will typically want to group them
+by drug class. The example below uses `dplyr::case_when()` — the first
+matching condition wins, so put the most specific patterns first.
+
+```r
+prescriptions <- prescriptions_raw |>
+  dplyr::mutate(
+    date = as.Date(issue_date, format = "%d/%m/%Y"),  # Parse UKB date format
+    drug_class = dplyr::case_when(
+      stringr::str_detect(drug_name,
+        stringr::regex("simvastatin|zocor", ignore_case = TRUE)) ~ "simvastatin",
+      stringr::str_detect(drug_name,
+        stringr::regex("atorvastatin|lipitor", ignore_case = TRUE)) ~ "atorvastatin",
+      stringr::str_detect(drug_name,
+        stringr::regex("rosuvastatin|crestor", ignore_case = TRUE)) ~ "rosuvastatin",
+      TRUE ~ "other_statin"
+    )
+  )
+```
+
+---
+
+### Drug indication changes over time
+
+Before treating all prescriptions of a drug as evidence of your condition
+of interest, check whether the drug's licensed indications changed during
+your study period.
+
+When a drug receives a new approval for a different condition, prescriptions
+after that date can no longer be assumed to reflect the original condition.
+This is a general problem — not specific to any one drug class.
+
+::: {.callout-warning}
+### Examples of indication expansions relevant to UK Biobank studies
+
+| Drug class | Original indication | New indication | Approximate date |
+|---|---|---|---|
+| SGLT2 inhibitors (e.g. empagliflozin, dapagliflozin) | Type 2 diabetes | Heart failure, chronic kidney disease | 2020 |
+| GLP-1 agonists (e.g. semaglutide, liraglutide) | Type 2 diabetes | Obesity | 2020–2021 |
+| Methotrexate | Cancer | Rheumatoid arthritis, psoriasis | Expanded progressively |
+| Beta-blockers (e.g. bisoprolol) | Hypertension | Heart failure | Late 1990s |
+| Aspirin | Pain / fever | Cardiovascular prevention | 1980s onwards |
+
+If your study period spans a change in approved indications, consider
+applying a date cutoff: include only prescriptions issued before the
+new indication became common, or stratify your analysis by period.
+:::
+
+---
+
+## Part 3: Going further {#sec-further}
+
+### Non-diagnostic code lists
+
+For some research questions you may want to exclude events that represent
+administrative activity (e.g. annual review codes, referral codes) rather
+than a genuine diagnosis. These can be included in your code list with a
+distinct `condition` label (e.g. `"condition_admin"`) and filtered out after
+extraction.
+
+### Delivery and procedure codes
+
+If your study excludes events during pregnancy or within a window around a
+surgical procedure, you can build a separate code list for those events
+following the same CSV schema, extract them with
+[extract_diagnoses.R](../scripts/extract_diagnoses.R), and use the
+resulting dates to define exclusion windows.
+
+### Classifying diabetes in UK Biobank
+
+If your research question involves identifying and classifying diabetes cases
+(type 1, type 2, or other) from UK Biobank linked records, a dedicated
+R package has been developed at Steno Diabetes Center Aarhus:
+
+**UKDC — UK Diabetes Classifier**
+Currently available at: [https://github.com/steno-aarhus/UKDC](https://github.com/steno-aarhus/UKDC)
+(formal publication forthcoming)
+
+UKDC handles GP diagnosis extraction, HES extraction, prescription
+classification, pregnancy exclusion, and type classification in a single
+workflow. The extraction scripts in this guide are general-purpose
+equivalents of its core extraction functions, designed to work for any
+condition.

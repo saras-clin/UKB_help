@@ -1,0 +1,31 @@
+project:
+  type: website
+  output-dir: _site
+
+website:
+  title: "UK Biobank Clinical Data Guide"
+  site-url: https://saras-clin.github.io/UKB_help/
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: getting-started-ukb.qmd
+        text: Getting Started
+      - href: code-lists-guide.qmd
+        text: Code Lists Guide
+      - href: guide-to-functions.qmd
+        text: Function Guide
+      - href: dataset-reference.qmd
+        text: Dataset Reference
+      - href: common-mistakes.qmd
+        text: Common Mistakes
+  page-footer:
+    center: "UK Biobank Clinical Data Guide — Steno Diabetes Center Aarhus, Aarhus University Hospital"
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    highlight-style: github
+    code-fold: false

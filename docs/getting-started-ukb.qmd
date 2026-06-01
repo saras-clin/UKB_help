@@ -1,0 +1,239 @@
+---
+title: "Getting Started with UK Biobank Clinical Data"
+subtitle: "Data sources, query patterns, and platform orientation for RAP"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 3
+---
+
+## Before you read this
+
+This page assumes you have already completed the
+[ukbAid initial setup](https://steno-aarhus.github.io/ukbAid/articles/initial-setup.html):
+you have RAP access, your GitHub personal access token is configured, and you
+can open an RStudio session on the RAP platform.
+
+If any function name on this page is unfamiliar, the
+[Function Guide](guide-to-functions.qmd) explains each one step by step.
+
+---
+
+## Before extracting GP or HES data: run `export_tables()` once
+
+::: {.callout-important}
+### One-time prerequisite for GP and HES extraction
+
+Before `ukbrapR::get_diagnoses()` will find any data, you must run a
+table-exporter job that copies the UKB linked tables (GP clinical, HES,
+cancer registry, death records) to RAP persistent storage. This is a
+**one-time step per RAP project** — you do not need to repeat it for every
+session.
+
+Run this in a fresh RAP RStudio session before anything else:
+
+```r
+ukbrapR::export_tables()
+```
+
+This submits a job that exports approximately 10 GB of linked data.
+It takes several minutes. You only need to do this once. After that,
+`ukbrapR::get_diagnoses()` reads from the exported files automatically —
+you never need to set a file path for GP or HES data.
+:::
+
+---
+
+## Three clinical data sources
+
+UK Biobank provides three types of linked clinical data that are relevant to
+most disease studies. Each one is stored and accessed differently.
+
+| Data source | What it contains | How it is accessed | Date column |
+|---|---|---|---|
+| **GP clinical records** | Read v2 and CTV3 diagnostic, procedure, and admin codes from primary care | `ukbrapR::get_diagnoses()` — after running `export_tables()` once | `event_dt` |
+| **Hospital Episode Statistics (HES)** | ICD-10 and ICD-9 diagnosis codes from inpatient hospital admissions | `ukbrapR::get_diagnoses()` — after running `export_tables()` once | `epistart` |
+| **GP prescriptions** (`gp_scripts`) | One row per prescription item: drug name, BNF code, issue date. ~57 million rows. | Arrow file scan: `arrow::open_delim_dataset()` | `issue_date` |
+
+::: {.callout-note}
+### Nothing is loaded into memory until you ask for it
+
+GP prescriptions are stored as a large tab-delimited file
+(`gp_scripts.tsv`, ~57 million rows). The Arrow package lets you describe a
+query — which rows to keep, which columns to select — and only the matching
+rows are loaded into R memory when you call `collect()`. Opening the dataset
+with `open_delim_dataset()` is instant; the work happens at `collect()`.
+
+See [The pattern you will use again and again](#sec-pattern) below for a
+worked example.
+:::
+
+---
+
+## Primary care data availability
+
+::: {.callout-warning}
+### Only about 45% of participants have linked GP records
+
+UK Biobank participants who consented to GP data linkage represent roughly
+45% of the full cohort. The remaining 55% have no GP clinical records or
+prescriptions — not because they have no health events, but because their GP
+data was never linked.
+
+This matters for two reasons:
+
+1. A participant with zero GP events might simply lack GP linkage, not be
+disease-free. Never interpret an empty GP record as evidence of health.
+
+2. Participants without GP linkage are not a random sample of the cohort.
+Linkage rates vary by region and GP practice.
+
+The UKB demographics fields `p42040`, `p42039`, and `p42038` contain counts
+of linked GP records. A participant has GP data if any of these counts is
+non-zero. See the [Dataset Reference](dataset-reference.qmd#sec-demographics)
+for details.
+:::
+
+---
+
+## The pattern you will use again and again {#sec-pattern}
+
+The central pattern for working with large files on RAP is: **open lazily,
+filter inside Arrow, then collect**. Here it is applied to the GP
+prescriptions file:
+
+```r
+library(arrow)
+library(dplyr)
+
+# Step 1: open the file — no data enters R yet
+ds <- arrow::open_delim_dataset(
+  "/mnt/project/ukbrapr_data/gp_scripts.tsv",   # path on RAP
+  delim = "\t"                                  # tab-delimited
+)
+
+# Step 2: build a lazy query (still no data in memory)
+query <- ds |>
+  dplyr::select(eid, issue_date, drug_name, bnf_code) |>  # keep only needed columns
+  dplyr::filter(grepl("^0601", bnf_code))                 # push filter into Arrow scan
+
+# Step 3: collect — only matching rows enter R
+result <- dplyr::collect(query)
+```
+
+```{mermaid}
+flowchart LR
+    A["open_delim_dataset()\nopen connection\n(no data yet)"] --> B["select()\nfilter()\nbuild lazy query"]
+    B --> C["collect()\nread matching rows\ninto R memory"]
+    C --> D["join / mutate\ndownstream work"]
+```
+
+### The most important rule: filter BEFORE collect
+
+Calling `collect()` before filtering loads the entire 57-million-row file
+into RAM. On most RAP instances this will crash your session with no warning.
+
+```r
+# WRONG — loads all 57M rows, then filters in R
+prescriptions <- ds |>
+  dplyr::collect() |>
+  dplyr::filter(grepl("^0601", bnf_code))   # too late; data already in memory
+
+# CORRECT — filter pushes into Arrow, only matching rows enter R
+prescriptions <- ds |>
+  dplyr::filter(grepl("^0601", bnf_code)) |>  # inside Arrow scan
+  dplyr::collect()
+```
+
+### Why `select()` before `collect()` also matters
+
+Arrow reads only the columns you ask for. Selecting four columns from a
+file with twenty reduces the amount of data Arrow has to parse even for
+matching rows. Always `select()` down to the columns you need before
+`collect()`.
+
+---
+
+## Field IDs and column naming
+
+UK Biobank identifies every variable by a numeric Field ID. When you extract
+demographics using `ukbAid::proj_create_dataset()`, the column names in the
+output follow the RAP naming convention:
+
+| Field ID | RAP column name | Contents |
+|---|---|---|
+| 31 | `p31` | Sex (0 = Female, 1 = Male) |
+| 34 | `p34` | Year of birth |
+| 52 | `p52` | Month of birth (1–12) |
+| 53, instance 0 | `p53_i0` | Date of attending assessment centre, visit 0 (2006–2010) |
+| 53, instance 1 | `p53_i1` | Date of attending assessment centre, visit 1 (2012–2013) |
+| 42040 | `p42040` | Number of GP clinical event records linked |
+| 42039 | `p42039` | Number of GP prescription records linked |
+| 42038 | `p42038` | Number of GP registration records linked |
+
+The pattern is: single-instance fields are named `p<field_id>`;
+multi-instance fields are named `p<field_id>_i<instance>`.
+
+To look up any Field ID, visit the
+[UKB Data Showcase](https://biobank.ndph.ox.ac.uk/showcase/).
+
+::: {.callout-note}
+### Date of birth is not stored as a single field
+
+UK Biobank does not release an exact date of birth. Year of birth (`p34`)
+and month of birth (`p52`) are available separately. A standard approximation
+is to set the day to the 15th of the birth month:
+
+```r
+date_of_birth <- as.Date(paste0(p34, "-", sprintf("%02d", p52), "-15"))
+```
+
+If month is not available, the 1st of July is a common fallback.
+:::
+
+---
+
+## The ICD-9 / ICD-10 split in HES
+
+Hospital Episode Statistics used ICD-9 codes before approximately 1995 and
+switched to ICD-10 coding from then onwards. Both codes are present as
+separate columns in the HES data:
+
+| Column | Coding system | Period |
+|---|---|---|
+| `diag_icd10` | ICD-10 (e.g. `E11`) | ~1995 onwards |
+| `diag_icd9` | ICD-9 (e.g. `250`) | Before ~1995 |
+
+If your study covers the full HES history, you must search **both** columns.
+Querying only `diag_icd10` silently discards all diagnoses before 1995.
+
+```r
+# WRONG — misses all ICD-9 era diagnoses
+hes_hypertension <- hesin_diag |>
+  dplyr::filter(grepl("^I10", diag_icd10))
+
+# CORRECT — check both columns
+hes_hypertension <- hesin_diag |>
+  dplyr::filter(
+    grepl("^I10", diag_icd10) |          # ICD-10 hypertension
+    grepl("^401", diag_icd9)             # ICD-9 equivalent
+  )
+```
+
+---
+
+## Quick-reference table
+
+| Question | Answer |
+|---|---|
+| How do I know if a participant has GP records? | Check `p42040 > 0` or `p42039 > 0` in demographics |
+| What does a date of 1901-01-01 mean? | Missing or unknown date — replace with NA before analysis |
+| Why does my BNF filter miss so many prescriptions? | ~23% of rows have no BNF code; add a drug-name regex fallback (see [Code Lists Guide](code-lists-guide.qmd)) |
+| Why does my ICD query return no HES results before 1995? | HES used ICD-9 before ~1995 — query `diag_icd9` as well as `diag_icd10` |
+| My session crashed reading gp_scripts | You called `collect()` before filtering; always filter inside Arrow first |
+| My join on `eid` returned zero rows | One side has `eid` as integer, the other as character; coerce both with `as.integer(eid)` |
+| What is instance 0 vs instance 1? | Instance 0 = initial assessment visit (2006–2010); instance 1 = first repeat visit (2012–2013). Use the correct instance for your baseline. |
+| Why is `p53_i0` missing for some participants? | Not all participants attended every assessment visit |
+| How do I look up a Field ID? | Search [biobank.ndph.ox.ac.uk/showcase](https://biobank.ndph.ox.ac.uk/showcase/) |
+| What does "data coding 99" or "-3" mean? | These are missing-value codes for some fields — but the coding varies by field. Always check the field's specific coding on the showcase. |

@@ -1,0 +1,432 @@
+---
+title: "Function Guide"
+subtitle: "Every function used in the extraction scripts, explained for a first-time reader"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 3
+---
+
+This page explains the functions used in the three scripts in `scripts/`.
+Each entry covers what the function does, an everyday analogy to build
+intuition, a minimal code example, and any non-obvious behaviour worth
+knowing.
+
+::: {.callout-tip}
+### The nine most important functions — start here
+
+| Function | Script | What it does in one sentence |
+|---|---|---|
+| `pak::pak()` | `setup.R` | Installs R packages, including those on GitHub |
+| `ukbAid::proj_setup_rap()` | `setup.R` | Connects your RAP session to your GitHub project |
+| `ukbAid::proj_create_dataset()` | `setup.R` | Extracts UKB variables by Field ID into a CSV |
+| `ukbrapR::export_tables()` | `setup.R` section 6 | Exports linked UKB tables to RAP storage — **run once before any GP or HES extraction** |
+| `ukbrapR::get_diagnoses()` | `extract_diagnoses.R` | Queries GP clinical and HES records for a list of codes |
+| `arrow::open_delim_dataset()` | `extract_medications.R` | Opens a large file lazily — no data enters memory yet |
+| `dplyr::collect()` | `extract_medications.R` | Executes a lazy Arrow query and returns a data frame |
+| `stringr::str_detect()` | `extract_medications.R` | Tests whether a string matches a regex pattern |
+| `ukbAid::rap_copy_to()` | `setup.R` | Copies a local file to the RAP user folder for persistence |
+:::
+
+---
+
+## setup.R functions
+
+### `pak::pak()`
+
+**What it does:** Installs R packages. Works for CRAN packages, GitHub
+packages (by `"owner/repo"`), and Bioconductor packages. Faster than
+`install.packages()` for packages with many dependencies.
+
+**Analogy:** An order-anything delivery service — you tell it what you want
+and it finds the fastest way to get it, regardless of which shop stocks it.
+
+```r
+install.packages("pak")        # install pak itself first
+
+pak::pak("steno-aarhus/ukbAid")  # install from GitHub
+pak::pak("arrow")                # install from CRAN
+pak::pak()                       # install everything listed in DESCRIPTION
+```
+
+::: {.callout-note}
+The RAP environment resets at the end of every session. `pak::pak()` must
+be run at the start of each new session to reinstall packages. This is a
+RAP constraint, not an R constraint.
+:::
+
+---
+
+### `ukbAid::proj_setup_rap()`
+
+**What it does:** Connects your RAP RStudio session to your GitHub project
+repository. Configures Git credentials and sets up the project directory
+structure on RAP.
+
+**Analogy:** Plugging a phone into a computer for the first time — one-time
+pairing so they can exchange files.
+
+```r
+ukbAid::proj_setup_rap()    # run once per project (not every session)
+```
+
+::: {.callout-note}
+Run once when first setting up a project. For subsequent sessions, the
+project is already connected and this step is not needed again.
+:::
+
+---
+
+### `ukbAid::proj_create_dataset()`
+
+**What it does:** Extracts specific UKB variables by their Field ID from the
+UKB database and writes them to a CSV file on RAP. This is how you get your
+demographics data (sex, date of birth, assessment dates, etc.).
+
+**Analogy:** Ordering a custom data printout from a library archive — you
+specify which columns you want, and it fetches only those.
+
+```r
+readr::read_csv(here::here("data-raw/rap-variables.csv"),
+                show_col_types = FALSE) |>
+  dplyr::pull(id) |>
+  ukbAid::proj_create_dataset(output_path = "dataset.csv")
+```
+
+The input file (`data-raw/rap-variables.csv`) is a CSV you create yourself
+with two columns: `id` (the Field ID, e.g. `p31`) and `title` (a label for
+your reference). You build this list by looking up Field IDs on the
+[UKB Data Showcase](https://biobank.ndph.ox.ac.uk/showcase/). See
+[setup.R section 4A](../scripts/setup.R) for the full variable selection
+workflow and [Dataset Reference](dataset-reference.qmd#sec-demographics) for
+the fields relevant to clinical data studies.
+
+::: {.callout-note}
+This function can take 5–60 minutes depending on how many fields you
+request and how busy the RAP platform is. Run it once and save the result
+as parquet. Load from parquet in future sessions.
+:::
+
+---
+
+### `ukbAid::rap_copy_to()`
+
+**What it does:** Copies a local file (in your RStudio project) to the RAP
+user storage folder. This makes the file persistent — it survives after your
+session ends.
+
+**Analogy:** Saving a document to a cloud drive before shutting down your
+laptop. Anything only on the local drive is lost when the laptop (session)
+closes.
+
+```r
+ukbAid::rap_copy_to(
+  local_path = here::here("data/results.parquet"),
+  rap_path   = "/users/your_username/results.parquet"
+)
+```
+
+::: {.callout-warning}
+Never commit data files to GitHub (the ukbAid guidelines prohibit this
+and it would breach UK Biobank data access agreements). Use
+`rap_copy_to()` to persist data within the RAP platform.
+:::
+
+---
+
+### `arrow::write_parquet()` and `arrow::read_parquet()`
+
+**What they do:** Save and load data frames as parquet files. Parquet is a
+compressed, column-oriented format that is much faster to read than CSV and
+preserves column types (dates stay dates, integers stay integers).
+
+**Analogy:** Vacuum-sealing food before refrigerating — smaller, lasts
+longer, and opens back to exactly what it was.
+
+```r
+arrow::write_parquet(my_data, here::here("data/my_data.parquet"))
+
+my_data <- arrow::read_parquet(here::here("data/my_data.parquet"))
+```
+
+::: {.callout-note}
+Always save both locally (`here::here("data/...")`) and to the RAP user
+folder with `ukbAid::rap_copy_to()`. The local copy is available this
+session; the RAP copy survives session reset.
+:::
+
+---
+
+## extract_diagnoses.R functions
+
+### `ukbrapR::export_tables()`
+
+**What it does:** Submits a table-exporter job on RAP that copies the UKB
+linked clinical tables — GP clinical records, Hospital Episode Statistics,
+cancer registry, and death records — to your RAP persistent storage. This
+is a **one-time prerequisite per RAP project**. Without it, `get_diagnoses()`
+finds no data.
+
+**Analogy:** Asking the archive to make photocopies of all the relevant
+filing cabinets and store them in a room where you can work. The copying
+takes time (minutes), but afterwards you can query the copies instantly in
+every future session.
+
+```r
+# Run once per project, then comment out.
+# Takes several minutes; exports ~10 GB of linked data.
+ukbrapR::export_tables()
+```
+
+::: {.callout-important}
+This function must be run **before** `get_diagnoses()` will return any data.
+Run it once when setting up a new project. You do not need to run it again
+in future sessions — the exported tables persist in RAP storage.
+
+Place this call in `setup.R` section 6 (as shown), uncomment it, run it
+once, then comment it out again.
+:::
+
+---
+
+### `ukbrapR::get_diagnoses()`
+
+**What it does:** Queries the UK Biobank database for GP clinical records
+and HES diagnosis records that match the codes in your code list. Returns
+a named list with two data frames: `$gp_clinical` and `$hesin_diag`.
+
+**Analogy:** Giving a librarian a list of keywords and asking them to search
+both the GP filing cabinets and the hospital records room — you get back two
+stacks of matching files.
+
+```r
+# codes must have columns: condition, vocab_id, code
+raw <- ukbrapR::get_diagnoses(codes)
+
+raw$gp_clinical   # GP records (event_dt, read_2 or read_3, eid, ...)
+raw$hesin_diag    # HES records (epistart, diag_icd10, diag_icd9, eid, ...)
+```
+
+::: {.callout-note}
+`ukbrapR` must be installed and the session must be running on the RAP
+platform. The function will not work outside RAP.
+:::
+
+::: {.callout-warning}
+### vocab_id must be "ICD10" and "ICD9" — no hyphens
+
+ukbrapR expects `ICD10` and `ICD9` without hyphens. If your code list uses
+`ICD-10` or `ICD-9` (common in published lists), the function will silently
+return no records for those codes. The extraction script corrects this
+automatically with `dplyr::recode()`, but check the message printed before
+the query to confirm all vocabularies were recognised.
+:::
+
+::: {.callout-warning}
+### The GP code column name changes between ukbrapR versions
+
+The column name for the Read/CTV3 code in `$gp_clinical` differs by ukbrapR
+version: older versions return `read_code`, newer versions return `read_2`
+and `read_3` (matching UKB field names). Hardcoding either name will break
+silently when the package is updated — you will get a column-not-found error
+or, worse, an all-`NA` column.
+
+Use `intersect()` to detect whichever column is present:
+
+```r
+code_col <- intersect(
+  c("read_2", "read_3", "read_code", "code"),
+  names(raw$gp_clinical)
+)[1]   # take the first match
+
+gp_events <- raw$gp_clinical |>
+  dplyr::rename(code = dplyr::all_of(code_col))
+```
+
+This pattern is used in `extract_diagnoses.R` and will continue to work
+across ukbrapR version updates.
+:::
+
+---
+
+### `dplyr::if_else()` with placeholder date logic
+
+**What it does:** Replaces UK Biobank placeholder dates (1901-01-01,
+1902-02-02, 1903-03-03) with `NA`. These dates are used by UKB to represent
+missing or unknown event dates in GP records.
+
+**Analogy:** Crossing out "TBD" entries in a calendar and leaving the slot
+blank — so they are not accidentally treated as real appointments.
+
+```r
+PLACEHOLDER_DATES <- as.Date(c("1901-01-01", "1902-02-02", "1903-03-03"))
+
+clean_dates <- dplyr::if_else(
+  date %in% PLACEHOLDER_DATES,
+  as.Date(NA),                     # replace with NA
+  date                             # otherwise keep as-is
+)
+```
+
+::: {.callout-warning}
+If you do not remove placeholder dates before any analysis, they will be
+treated as real events from 1901 or 1902. This produces incorrect results
+in any date calculation, age calculation, or time-to-event analysis.
+:::
+
+---
+
+### `dplyr::recode()`
+
+**What it does:** Replaces specific values in a character vector according to
+a named mapping. Used in the extraction script to normalise `vocab_id`
+values for ukbrapR.
+
+```r
+codes <- codes |>
+  dplyr::mutate(
+    vocab_id = dplyr::recode(vocab_id,
+      "ICD-10" = "ICD10",    # rename the key: old = "ICD-10", new = "ICD10"
+      "ICD-9"  = "ICD9"
+    )
+  )
+```
+
+Values not listed in the mapping are left unchanged.
+
+---
+
+## extract_medications.R functions
+
+### `arrow::open_delim_dataset()`
+
+**What it does:** Opens a delimited file (TSV, CSV) as a lazy Arrow dataset.
+Nothing is read into memory yet — the function just records where the file
+is and how it is formatted.
+
+**Analogy:** Opening the index of a very large encyclopaedia. You have
+access to the whole thing, but you have not read any pages yet.
+
+```r
+ds <- arrow::open_delim_dataset(
+  "/mnt/project/ukbrapr_data/gp_scripts.tsv",
+  delim = "\t"                   # tab-delimited
+)
+# ds is a reference, not a data frame — no data in memory yet
+```
+
+---
+
+### `dplyr::filter()` inside Arrow
+
+**What it does:** When applied to an Arrow dataset (before `collect()`),
+`filter()` adds a predicate that Arrow evaluates during the file scan. Only
+rows that match the predicate are read from disk.
+
+**Analogy:** Telling the encyclopaedia index "only bring me pages that
+mention statins" — so you only carry those pages out, not the whole book.
+
+```r
+# This filter runs inside Arrow — only matching rows are read from disk
+result <- ds |>
+  dplyr::filter(grepl("^0212", bnf_code)) |>
+  dplyr::collect()
+```
+
+::: {.callout-warning}
+If you call `collect()` before `filter()`, Arrow reads the entire file first
+and R then filters in memory. For a 57-million-row file, this will exhaust
+RAM and crash the session.
+:::
+
+---
+
+### `dplyr::collect()`
+
+**What it does:** Executes a lazy Arrow query and returns the result as a
+standard R data frame. This is the step where data actually enters memory.
+
+**Analogy:** Placing the order with the encyclopaedia. Everything before
+this was just writing down what you wanted.
+
+```r
+# Lazy query (no data yet)
+query <- ds |>
+  dplyr::select(eid, issue_date, drug_name, bnf_code) |>
+  dplyr::filter(grepl("^0212", bnf_code))
+
+# Execute — data enters R memory here
+result <- dplyr::collect(query)
+```
+
+---
+
+### `stringr::str_detect()`
+
+**What it does:** Returns a logical vector indicating which elements of a
+character vector match a regex pattern. Useful for testing your pattern on
+a sample before running it on 57 million rows.
+
+**Analogy:** A spell-checker's "find" function — highlight all occurrences
+of a pattern in a document.
+
+```r
+library(stringr)
+
+drug_names <- c("Metformin 500mg", "Atorvastatin 40mg", "Metformin/Sitagliptin")
+
+str_detect(drug_names, regex("metformin", ignore_case = TRUE))
+# Returns: TRUE FALSE TRUE
+```
+
+Use `ignore_case = TRUE` (via `stringr::regex()`) unless you are certain
+about capitalisation. Drug names in `gp_scripts` are mixed case.
+
+---
+
+### `dplyr::case_when()`
+
+**What it does:** A vectorised if-else chain. Each condition is evaluated in
+order; the first matching condition's value is used. Used to classify
+prescriptions by drug class after extraction.
+
+**Analogy:** A traffic officer directing cars: first, check if it is a bus
+(bus lane); if not, check if it is a lorry (restricted route); otherwise,
+normal traffic.
+
+```r
+prescriptions |>
+  dplyr::mutate(
+    drug_class = dplyr::case_when(
+      stringr::str_detect(drug_name, regex("simvastatin|zocor", ignore_case = TRUE)) ~ "simvastatin",
+      stringr::str_detect(drug_name, regex("atorvastatin|lipitor", ignore_case = TRUE)) ~ "atorvastatin",
+      TRUE ~ "other_statin"     # default: catches everything that reached this line
+    )
+  )
+```
+
+::: {.callout-note}
+The `TRUE ~ "other_statin"` line at the end is the fallback. Without it,
+rows that do not match any condition receive `NA`. Always include a fallback
+if you want to account for all rows.
+:::
+
+---
+
+### `here::here()`
+
+**What it does:** Constructs file paths relative to the root of your R
+project, regardless of where on the filesystem the project is located.
+
+**Analogy:** Writing "the kitchen" instead of "37 Maple Street, second room
+on the left" — works no matter which house you are in, as long as the
+kitchen is always the kitchen.
+
+```r
+# Correct — works on any machine, any user
+arrow::write_parquet(data, here::here("data/results.parquet"))
+
+# Fragile — only works on one specific computer
+arrow::write_parquet(data, "/Users/saraschwartz/Desktop/project/data/results.parquet")
+```

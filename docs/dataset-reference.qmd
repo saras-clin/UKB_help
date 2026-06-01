@@ -1,0 +1,206 @@
+---
+title: "Dataset Reference"
+subtitle: "Confirmed column names for all clinical data sources used in UK Biobank extraction"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 3
+---
+
+All column names on this page are confirmed via the UKDC source code and
+ukbrapR documentation. They are shown after any standardisation applied by
+the extraction scripts (e.g. renaming `event_dt` to `date`). The original
+column names returned by ukbrapR are noted where they differ.
+
+---
+
+## Reverse lookup: I want to find...
+
+| I want to find... | Dataset | Key column(s) |
+|---|---|---|
+| Participant identifier | All datasets | `eid` (integer) |
+| Sex | Demographics | `p31` (0 = Female, 1 = Male) |
+| Year of birth | Demographics | `p34` |
+| Month of birth | Demographics | `p52` |
+| Date of birth (approximated) | Demographics | Derived: `p34` + `p52` |
+| Assessment centre visit date | Demographics | `p53_i0` (visit 0), `p53_i1` (visit 1) |
+| Whether GP records exist | Demographics | `p42040`, `p42039`, `p42038` |
+| GP clinical diagnosis events | GP clinical | `eid`, `date`, `code`, `source` |
+| Hospital diagnosis events | HES | `eid`, `date`, `diag_icd10`, `diag_icd9`, `source` |
+| Prescription events | GP prescriptions | `eid`, `date`, `drug_name`, `bnf_code` |
+| HbA1c measurements | Demographics | `p30750_i0`, `p30750_i1`, `p30750_i2` |
+| Random glucose | Demographics | `p30740_i0`, `p30740_i1`, `p30740_i2` |
+
+---
+
+## GP clinical records {#sec-gp}
+
+Returned by `ukbrapR::get_diagnoses()` as `$gp_clinical`.
+
+::: {.callout-note}
+GP records are available for approximately 45% of UK Biobank participants.
+A participant with no rows in this table may simply have no GP linkage, not
+be disease-free.
+:::
+
+| Column | Type | Description | Notes |
+|---|---|---|---|
+| **`eid`** | integer | Participant identifier | Coerce to integer before joins |
+| **`event_dt`** | Date | Date of the clinical event | ukbrapR column name. Renamed to `date` by the extraction script. Contains UKB placeholder dates — see below. |
+| `read_2` | character | Read version 2 code | Column name in ukbrapR v0.3.14+. Older versions use `read_code`. |
+| `read_3` | character | CTV3 code | Present in ukbrapR v0.3.14+. |
+| `source` | character | Added by extraction script | Always `"GP"` after processing |
+
+::: {.callout-warning}
+### UKB placeholder dates
+
+UK Biobank uses three dates to represent missing or unknown event dates in
+GP records:
+
+- `1901-01-01`
+- `1902-02-02`
+- `1903-03-03`
+
+These are not real event dates. The extraction script replaces them with
+`NA`. If you process raw ukbrapR output directly, remove them before any
+date-based analysis.
+:::
+
+---
+
+## HES diagnosis records {#sec-hes}
+
+Returned by `ukbrapR::get_diagnoses()` as `$hesin_diag`.
+
+| Column | Type | Description | Notes |
+|---|---|---|---|
+| **`eid`** | integer | Participant identifier | Coerce to integer before joins |
+| **`epistart`** | Date | Episode start date | ukbrapR column name. Renamed to `date` by the extraction script. |
+| **`diag_icd10`** | character | ICD-10 diagnosis code | Used from ~1995 onwards. Stored as the full sub-code (e.g. `E110`); ukbrapR matches on the first three characters. |
+| **`diag_icd9`** | character | ICD-9 diagnosis code | Used before ~1995. Must be queried alongside `diag_icd10` to cover the full record history. |
+| `source` | character | Added by extraction script | Always `"HES"` after processing |
+
+::: {.callout-warning}
+### ICD-9 and ICD-10 are in separate columns
+
+A HES record has both `diag_icd10` and `diag_icd9`, but only one will be
+populated depending on the episode date. Records from before approximately
+1995 will have an ICD-9 code in `diag_icd9` and a missing `diag_icd10`.
+If you filter on `!is.na(diag_icd10)` you will silently exclude all
+pre-1995 diagnoses.
+:::
+
+---
+
+## GP prescriptions (`gp_scripts`) {#sec-prescriptions}
+
+Accessed via Arrow from `gp_scripts.tsv` (raw) or a pre-converted parquet
+version. The file contains approximately 57 million rows — one per
+prescription item.
+
+| Column | Type | Description | Notes |
+|---|---|---|---|
+| **`eid`** | integer | Participant identifier | Coerce to integer before joins |
+| **`issue_date`** | character | Date the prescription was issued | Raw format is `dd/mm/yyyy` (character). Must be parsed with `as.Date(issue_date, format = "%d/%m/%Y")`. |
+| **`drug_name`** | character | Free-text drug name | Inconsistent capitalisation and abbreviations across practices. Use case-insensitive regex. |
+| `bnf_code` | character | BNF chapter code | Missing in ~23% of rows. Never rely on BNF alone. |
+| `quantity` | character | Quantity prescribed | Not used in extraction scripts; available for sensitivity analyses. |
+
+::: {.callout-warning}
+### `issue_date` is a character column in `dd/mm/yyyy` format
+
+The raw `gp_scripts` file stores dates as strings in day/month/year order,
+not the ISO standard year/month/day. Parsing it with `as.Date()` without
+specifying `format = "%d/%m/%Y"` will silently produce `NA` for every row.
+
+```r
+# WRONG — produces NA for all rows
+as.Date("01/06/2010")
+
+# CORRECT — specifies the format
+as.Date("01/06/2010", format = "%d/%m/%Y")
+```
+:::
+
+---
+
+## Demographics (UKB field naming convention) {#sec-demographics}
+
+Extracted from the UKB database using `ukbAid::proj_create_dataset()`.
+Column names follow the RAP convention: `p<field_id>` for single-instance
+fields, `p<field_id>_i<instance>` for multi-instance fields.
+
+| Column | Field ID | Type | Description | Notes |
+|---|---|---|---|---|
+| **`eid`** | — | integer | Participant identifier | Universal join key |
+| **`p31`** | 31 | integer | Sex | 0 = Female, 1 = Male |
+| **`p34`** | 34 | integer | Year of birth | Use with `p52` to approximate date of birth |
+| **`p52`** | 52 | integer | Month of birth | 1–12. Combine with `p34` to approximate date of birth (day set to 15). |
+| **`p53_i0`** | 53, instance 0 | Date | Assessment centre date, visit 0 | Initial assessment (2006–2010). Standard baseline date for incident/prevalent classification. |
+| **`p53_i1`** | 53, instance 1 | Date | Assessment centre date, visit 1 | First repeat visit (2012–2013). Not all participants attended. |
+| **`p53_i2`** | 53, instance 2 | Date | Assessment centre date, visit 2 | Second repeat visit (2014–2020). Sparse. |
+| **`p42040`** | 42040 | integer | Number of GP clinical event records | Non-zero if participant has linked GP data. Use to derive `has_gp_data`. |
+| **`p42039`** | 42039 | integer | Number of GP prescription records | Non-zero if participant has linked prescription data. |
+| **`p42038`** | 42038 | integer | Number of GP registration records | Non-zero if participant has registration record. |
+| `p30750_i0` | 30750, instance 0 | numeric | HbA1c (mmol/mol), visit 0 | Raw assay value. Matched by assay date `p30751_i0`. |
+| `p30751_i0` | 30751, instance 0 | Date | HbA1c assay date, visit 0 | Assay date for `p30750_i0`. |
+| `p30740_i0` | 30740, instance 0 | numeric | Random glucose (mmol/L), visit 0 | Non-fasting. Do not apply fasting glucose thresholds. |
+| `p30741_i0` | 30741, instance 0 | Date | Glucose assay date, visit 0 | Assay date for `p30740_i0`. |
+
+::: {.callout-note}
+### Deriving date of birth
+
+UK Biobank does not release an exact date of birth. Approximate from year
+and month:
+
+```r
+demographics <- demographics |>
+  dplyr::mutate(
+    date_of_birth = as.Date(
+      paste0(p34, "-", sprintf("%02d", p52), "-15")  # 15th of birth month
+    )
+  )
+```
+
+If month is not available, use July 1st as the annual midpoint:
+`as.Date(paste0(p34, "-07-01"))`.
+:::
+
+::: {.callout-note}
+### Deriving `has_gp_data`
+
+```r
+demographics <- demographics |>
+  dplyr::mutate(
+    has_gp_data = (p42040 > 0 | p42039 > 0 | p42038 > 0)
+  )
+```
+
+`has_gp_data = FALSE` means the participant has no GP linkage — not that
+they have no diagnoses. These participants will have no GP clinical events
+or prescriptions, regardless of their health status.
+:::
+
+---
+
+## Standardised event output
+
+After running the extraction scripts, you will have a tidy events data frame
+with consistent columns across all sources. This is the format used for
+downstream analysis.
+
+| Column | Type | Description |
+|---|---|---|
+| `eid` | integer | Participant identifier |
+| `date` | Date | Event date (placeholder dates removed; future dates removed) |
+| `source` | character | Where the event came from: `"GP"` or `"HES"` |
+| `code` | character | The diagnostic code (GP events only) |
+| `diag_icd10` | character | ICD-10 code (HES events only) |
+| `diag_icd9` | character | ICD-9 code (HES events only) |
+| `drug_name` | character | Drug name (prescription events only) |
+| `bnf_code` | character | BNF code (prescription events only) |
+| `drug_class` | character | Drug class label added by extract_medications.R |
+
+Combine GP events, HES events, and prescription events with
+`dplyr::bind_rows()` — missing columns are filled with `NA`.

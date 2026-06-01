@@ -1,0 +1,411 @@
+---
+title: "Common Mistakes"
+subtitle: "Thirteen UK Biobank pitfalls that produce silent errors or session crashes"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 2
+---
+
+These are the errors that cost the most time and give the least informative
+error messages. Most produce no warning — your analysis simply runs to
+completion with wrong results. Each section shows what goes wrong, why it
+happens, and the correct approach.
+
+---
+
+## 1. Calling `collect()` before filtering on `gp_scripts`
+
+**What goes wrong:** The session runs out of memory and crashes with no
+useful error. You may see a generic "R session aborted" or the session
+silently disconnects. You lose any unsaved work.
+
+The GP prescriptions file (`gp_scripts.tsv`) contains approximately 57
+million rows. Collecting everything into R and filtering afterwards requires
+loading several gigabytes into RAM — more than most RAP instances provide.
+
+```r
+# WRONG — loads 57 million rows into memory before any filtering
+prescriptions <- arrow::open_delim_dataset(path, delim = "\t") |>
+  dplyr::collect() |>
+  dplyr::filter(grepl("^0601", bnf_code))
+
+# CORRECT — filter is pushed into Arrow and runs during the file scan
+prescriptions <- arrow::open_delim_dataset(path, delim = "\t") |>
+  dplyr::filter(grepl("^0601", bnf_code)) |>
+  dplyr::collect()
+```
+
+See [Getting Started](getting-started-ukb.qmd#sec-pattern) for the full
+Arrow query pattern.
+
+---
+
+## 2. Treating placeholder dates as real event dates
+
+**What goes wrong:** Events dated 1901-01-01, 1902-02-02, or 1903-03-03
+appear in your dataset as if they are genuine historical diagnoses. Any
+age calculation, time-to-event analysis, or incident/prevalent split
+that uses these dates will be wrong — and the error will be invisible unless
+you plot or inspect the date distribution.
+
+These three dates are used by UK Biobank to represent missing or unknown
+event dates in GP records. They are not real dates.
+
+```r
+# WRONG — placeholder dates stay in the data as real events
+events <- gp_clinical |>
+  dplyr::mutate(date = as.Date(event_dt))
+
+# CORRECT — replace placeholders with NA, then drop
+PLACEHOLDER_DATES <- as.Date(c("1901-01-01", "1902-02-02", "1903-03-03"))
+
+events <- gp_clinical |>
+  dplyr::mutate(
+    date = as.Date(event_dt),
+    date = dplyr::if_else(date %in% PLACEHOLDER_DATES, as.Date(NA), date)
+  ) |>
+  dplyr::filter(!is.na(date))
+```
+
+::: {.callout-tip}
+Always plot the distribution of event dates before analysis. A spike at
+1901 or 1902 is an immediate sign that placeholder dates were not removed.
+After removing placeholder dates, also check for events before 1980 — these
+are suspicious and likely represent malformed dates rather than genuine
+historical records. They are not automatically removed but should be
+inspected before analysis.
+
+```r
+# Quick date range check after placeholder removal:
+range(events$date, na.rm = TRUE)   # max should be today or earlier; min should not be pre-1980
+sum(events$date < as.Date("1980-01-01"), na.rm = TRUE)  # flag count for investigation
+```
+:::
+
+---
+
+## 3. `eid` type mismatch causing silent join failures
+
+**What goes wrong:** A join on `eid` returns zero rows, or produces
+unexpected row duplication, with no error or warning. The root cause is
+that `eid` is stored as an integer in some tables and as a character string
+in others. R does not coerce between types when joining.
+
+```r
+# WRONG — one side is integer, the other is character
+gp_events |>                      # eid class: integer
+  dplyr::left_join(
+    demographics,                 # eid class: character
+    by = "eid"
+  )
+# Result: 0 matching rows — silent failure
+
+# CORRECT — coerce both sides to integer before joining
+gp_events |>
+  dplyr::mutate(eid = as.integer(eid)) |>
+  dplyr::left_join(
+    demographics |> dplyr::mutate(eid = as.integer(eid)),
+    by = "eid"
+  )
+```
+
+::: {.callout-tip}
+Make it a habit: always run `as.integer(eid)` whenever you create or load
+a data frame that will be joined on `eid`.
+:::
+
+---
+
+## 4. Assuming all participants have GP records
+
+**What goes wrong:** You interpret a participant having zero GP events as
+evidence that they have never been diagnosed with a condition. In reality,
+approximately 55% of UK Biobank participants have no GP linkage at all —
+their records were never connected to UKB, not because they are healthy, but
+because their GP practice did not participate.
+
+```r
+# WRONG — treats zero GP events as "no condition"
+no_condition <- demographics |>
+  dplyr::anti_join(gp_events, by = "eid")
+
+# CORRECT — distinguish "no GP linkage" from "GP-linked, no events"
+demographics <- demographics |>
+  dplyr::mutate(
+    has_gp_data = (p42040 > 0 | p42039 > 0 | p42038 > 0)
+  )
+
+no_events_but_linked <- demographics |>
+  dplyr::filter(has_gp_data) |>
+  dplyr::anti_join(gp_events, by = "eid")
+```
+
+---
+
+## 5. Querying only `diag_icd10` and missing pre-1995 diagnoses
+
+**What goes wrong:** Your HES analysis silently excludes all diagnoses
+recorded before approximately 1995. Hospital episodes before that date use
+ICD-9 codes in the `diag_icd9` column; `diag_icd10` is empty for those rows.
+
+This matters most for conditions with long histories: cardiovascular disease,
+cancer, mental health conditions. For a study using participants recruited
+from 2006, relevant earlier comorbidities are in the ICD-9 era.
+
+```r
+# WRONG — misses all ICD-9 era records
+hes_events <- hesin_diag |>
+  dplyr::filter(grepl("^I25", diag_icd10))    # only ICD-10
+
+# CORRECT — check both columns
+hes_events <- hesin_diag |>
+  dplyr::filter(
+    grepl("^I25", diag_icd10) |               # ICD-10: ischaemic heart disease
+    grepl("^410|^411|^412", diag_icd9)        # ICD-9 equivalents
+  )
+```
+
+---
+
+## 6. Using instance 0 for all participants regardless of study design
+
+**What goes wrong:** Results that depend on baseline timing are wrong for
+participants whose relevant exposure or outcome falls at a different instance.
+`p53_i0` is the date of the initial assessment visit (2006–2010). If your
+study uses a different baseline — for example, the first repeat visit
+(instance 1, 2012–2013) — using `p53_i0` applies the wrong date for every
+participant who attended later.
+
+```r
+# WRONG — uses instance 0 for everyone, even if the study baseline is instance 1
+demographics |>
+  dplyr::mutate(baseline_date = p53_i0)
+
+# CORRECT — use the instance that matches your study baseline
+# For a study baseline at initial assessment:
+demographics |>
+  dplyr::mutate(baseline_date = p53_i0)
+
+# For a study baseline at first repeat visit:
+demographics |>
+  dplyr::mutate(baseline_date = p53_i1)
+```
+
+::: {.callout-warning}
+Not all participants attended every visit. `p53_i1` and `p53_i2` are `NA`
+for participants who did not attend that visit. Check the distribution of
+missingness before using a later instance as baseline.
+:::
+
+---
+
+## 7. Using date of death without accounting for the reporting lag
+
+**What goes wrong:** Participants who died recently appear to still be alive
+in the data. UK Biobank receives death records from NHS Digital, which
+typically has a reporting lag of approximately 3 months. Using date of death
+directly for censoring or as an event date can incorrectly extend survival
+time or misclassify recent deaths.
+
+```r
+# WRONG — treats the most recent death date as today's date
+last_death_date <- max(demographics$date_of_death, na.rm = TRUE)
+
+# BETTER — set a fixed censoring date known to be fully reported
+# (e.g., 3 months before your data extract date)
+censor_date <- as.Date("2022-10-31")   # adjust to your data extract
+```
+
+---
+
+## 8. Assuming field codings are consistent across fields
+
+**What goes wrong:** You treat a value of `99` or `-3` as missing across all
+fields, but different fields use different coding schemes. In some fields,
+`99` is a legitimate response (e.g. "prefer not to answer"); in others it
+means "not applicable"; in others it does not appear at all.
+
+```r
+# WRONG — blanket replacement of 99 and -3
+demographics <- demographics |>
+  dplyr::mutate(
+    dplyr::across(everything(), ~dplyr::na_if(., 99)),
+    dplyr::across(everything(), ~dplyr::na_if(., -3))
+  )
+
+# CORRECT — look up each field's coding on the UKB Data Showcase
+# https://biobank.ndph.ox.ac.uk/showcase/
+# Then replace only the values that mean "missing" for that specific field
+demographics <- demographics |>
+  dplyr::mutate(
+    p6138 = dplyr::na_if(p6138, -3),     # -3 = "prefer not to answer" for Field 6138
+    p738  = dplyr::na_if(p738, -1)       # -1 = "do not know" for Field 738
+  )
+```
+
+---
+
+## 9. Parsing `issue_date` without specifying the format
+
+**What goes wrong:** Every row in `gp_scripts` gets an `NA` date after
+parsing, with no error. R's default `as.Date()` expects ISO format
+(YYYY-MM-DD). The raw `issue_date` column is in UK day/month/year format
+(`dd/mm/yyyy`), which `as.Date()` cannot parse without being told the format.
+
+```r
+# WRONG — produces NA for every row, no warning
+prescriptions <- prescriptions |>
+  dplyr::mutate(date = as.Date(issue_date))
+
+# CORRECT — specify the format
+prescriptions <- prescriptions |>
+  dplyr::mutate(date = as.Date(issue_date, format = "%d/%m/%Y"))
+```
+
+::: {.callout-tip}
+After date parsing, always check `sum(is.na(date))` before proceeding.
+If it equals the number of rows, the format argument is wrong.
+:::
+
+---
+
+## 10. Using BNF filter alone and missing ~23% of prescriptions
+
+**What goes wrong:** Your prescription count is lower than expected and
+varies inconsistently across participants. Some participants have all
+their prescriptions with BNF codes; others have many without BNF codes,
+depending on which GP system their practice used. A BNF-only filter applies
+unequal sensitivity across the cohort.
+
+Approximately 23% of rows in `gp_scripts` have no `bnf_code` recorded.
+These rows are structurally absent from any BNF-only filter.
+
+```r
+# WRONG — BNF only; misses all rows with missing bnf_code
+prescriptions <- ds |>
+  dplyr::filter(grepl("^0601", bnf_code)) |>
+  dplyr::collect()
+
+# CORRECT — BNF for confirmed rows, plus drug-name regex for the rest
+bnf_rows <- ds |>
+  dplyr::filter(grepl("^0601", bnf_code)) |>
+  dplyr::collect()
+
+drug_rows <- ds |>
+  dplyr::filter(
+    is.na(bnf_code) | !grepl("^0601", bnf_code),
+    grepl(DRUG_PATTERN, drug_name, ignore.case = TRUE)
+  ) |>
+  dplyr::collect()
+
+prescriptions <- dplyr::bind_rows(bnf_rows, drug_rows)
+```
+
+The full implementation, including a test step for the regex pattern, is
+in [scripts/extract_medications.R](../scripts/extract_medications.R).
+
+---
+
+## 11. Future-dated events from GP data entry errors
+
+**What goes wrong:** Your event dataset contains dates years into the future
+(e.g. 2035, 2087). These are GP data entry errors — a miskeyed year, or an
+appointment booked far ahead — not real diagnosis events. They inflate event
+counts and distort any analysis that depends on event timing.
+
+```r
+# Detect future dates:
+max(events$date, na.rm = TRUE)   # should not be after today
+
+# WRONG — future dates remain in the dataset
+events <- gp_clinical |>
+  dplyr::mutate(date = as.Date(event_dt))
+
+# CORRECT — drop anything dated after today
+events <- gp_clinical |>
+  dplyr::mutate(date = as.Date(event_dt)) |>
+  dplyr::filter(date <= Sys.Date())
+```
+
+::: {.callout-tip}
+Combine placeholder date removal and future date removal in one step:
+
+```r
+events <- gp_clinical |>
+  dplyr::mutate(
+    date = as.Date(event_dt),
+    date = dplyr::if_else(date %in% PLACEHOLDER_DATES, as.Date(NA), date)
+  ) |>
+  dplyr::filter(!is.na(date), date <= Sys.Date())
+```
+:::
+
+---
+
+## 12. Matching ICD codes with exact string instead of 3-character prefix
+
+**What goes wrong:** Your query returns zero HES events even though you know
+the condition is common. The cause is that HES stores ICD codes as
+sub-codes (`E101`, `E102`, `I251`) but published code lists use 3-character
+prefixes (`E10`, `I25`). Exact string matching misses all sub-code variants.
+
+This applies to both ICD-10 and ICD-9. Read v2 and CTV3 codes use exact
+matching — the rule differs by vocabulary.
+
+```r
+# WRONG — exact match misses all sub-codes (E101, E102, etc.)
+hes_events <- hesin_diag |>
+  dplyr::filter(diag_icd10 == "E10")
+
+# CORRECT — match on 3-character prefix to catch all sub-codes
+hes_events <- hesin_diag |>
+  dplyr::filter(substr(diag_icd10, 1, 3) == "E10")
+
+# For multiple codes, use grepl with anchoring:
+icd_codes <- c("E10", "E11", "E13")
+hes_events <- hesin_diag |>
+  dplyr::filter(substr(diag_icd10, 1, 3) %in% icd_codes)
+```
+
+::: {.callout-note}
+`ukbrapR::get_diagnoses()` handles prefix matching internally — this mistake
+only applies if you query the `hesin_diag` table directly after extracting
+it yourself.
+:::
+
+---
+
+## 13. Combining event data frames with mismatched column types
+
+**What goes wrong:** `dplyr::bind_rows()` silently coerces a column to a
+different type when combining data frames whose columns have the same name
+but different types (e.g. `date` as `Date` in one frame, `character` in
+another). The resulting column may have unexpected `NA`s or wrong values
+with no warning.
+
+```r
+# WRONG — date is Date in one frame, character in another
+gp_events  <- data.frame(eid = 1L, date = as.Date("2010-01-01"), source = "GP")
+hes_events <- data.frame(eid = 2L, date = "2012-06-15",          source = "HES")
+
+combined <- dplyr::bind_rows(gp_events, hes_events)
+class(combined$date)   # character — silently coerced; Date values become NA
+
+# CORRECT — coerce to the same type before binding
+hes_events <- hes_events |>
+  dplyr::mutate(date = as.Date(date))
+
+combined <- dplyr::bind_rows(gp_events, hes_events)
+class(combined$date)   # Date — correct
+```
+
+::: {.callout-tip}
+Before calling `bind_rows()` across multiple sources, check that shared
+columns have the same class in each frame:
+
+```r
+sapply(list(gp_events, hes_events), function(df) class(df$date))
+```
+:::

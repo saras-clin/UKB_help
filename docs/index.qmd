@@ -1,0 +1,151 @@
+---
+title: "UK Biobank Clinical Data Guide"
+subtitle: "A companion resource to ukbAid for working with clinical records on RAP"
+date: last-modified
+format:
+  html:
+    toc: false
+---
+
+## About this site
+
+This guide covers the parts of UK Biobank analysis that begin where
+[ukbAid](https://steno-aarhus.github.io/ukbAid/) ends: how to extract,
+clean, and work with clinical records — GP diagnoses, hospital episodes, and
+medication prescriptions — once your project is set up and running on the
+Research Analysis Platform (RAP).
+
+It is written for collaborators and students at Steno Diabetes Center Aarhus
+who are new to the UK Biobank platform or new to working with linked clinical
+data.
+
+---
+
+## Before you start
+
+::: {.callout-important}
+### Start with ukbAid
+
+Before reading anything on this site, complete the
+[ukbAid setup](https://steno-aarhus.github.io/ukbAid/articles/initial-setup.html).
+This covers requesting RAP access, creating your GitHub account and personal
+access token, installing the ukbAid package, and cloning your project
+repository. None of the scripts on this site will work without that
+foundation in place.
+:::
+
+::: {.callout-important}
+### Install ukbrapR every session
+
+The RAP environment resets when a session ends — packages do not persist.
+At the start of every RAP RStudio session, install and load ukbrapR:
+
+```r
+pak::pak("lcpilling/ukbrapR")
+library(ukbrapR)
+```
+
+ukbrapR is used throughout this guide for GP clinical record extraction,
+Hospital Episode Statistics queries, and data management. The full session
+startup sequence is in [scripts/setup.R](../scripts/setup.R).
+:::
+
+::: {.callout-important}
+### Run `export_tables()` once before your first GP or HES extraction
+
+Before `ukbrapR::get_diagnoses()` can find any data, run this **once per
+project** to export the linked clinical tables to RAP persistent storage:
+
+```r
+ukbrapR::export_tables()
+```
+
+This takes several minutes and exports approximately 10 GB. You never need
+to repeat it. See [Getting Started](getting-started-ukb.qmd) for details.
+:::
+
+---
+
+## Pages on this site
+
+::: {.grid}
+
+::: {.g-col-6}
+### [Getting Started](getting-started-ukb.qmd)
+How clinical data is stored on RAP, the Arrow query pattern for large files,
+UK Biobank Field IDs, primary care data availability, and a quick-reference
+table for common questions.
+:::
+
+::: {.g-col-6}
+### [Code Lists Guide](code-lists-guide.qmd)
+How to build your own diagnostic code list CSV, how to write and test
+medication regex patterns, and where to download validated code lists for
+over 200 conditions.
+:::
+
+::: {.g-col-6}
+### [Function Guide](guide-to-functions.qmd)
+Every function used in the extraction scripts explained for a first-time
+reader: what it does, an analogy, a minimal code example, and the non-obvious
+behaviours to watch for.
+:::
+
+::: {.g-col-6}
+### [Dataset Reference](dataset-reference.qmd)
+Confirmed column names for GP clinical records, HES diagnoses, GP
+prescriptions, and UKB demographics fields — with descriptions, types, and
+callouts for known quirks.
+:::
+
+::: {.g-col-6}
+### [Common Mistakes](common-mistakes.qmd)
+Thirteen UK Biobank pitfalls that produce silent errors or session crashes, with
+wrong-vs-correct code examples for each.
+:::
+
+:::
+
+---
+
+## What this site adds to ukbAid
+
+```{mermaid}
+flowchart TD
+    A[ukbAid layer] --> B[Request RAP access]
+    A --> C[Project setup and GitHub]
+    A --> D["Extract raw variables by Field ID\nukbAid::proj_create_dataset()"]
+
+    E[This site] --> F["Extract GP clinical and HES records\nextract_diagnoses.R"]
+    E --> G["Extract medication prescriptions\nextract_medications.R"]
+    E --> H["Build and validate code lists\ncode-lists-guide.qmd"]
+    E --> I["Understand clinical columns\ndataset-reference.qmd"]
+
+    D --> F
+    D --> G
+```
+
+---
+
+## Folder structure
+
+When this project is set up as a standalone repository, the layout is:
+
+```
+ukb-clinical-guide/        <- project root (future GitHub repository)
+├── scripts/
+│   ├── setup.R            <- session startup: packages, demographics, save pattern
+│   ├── extract_diagnoses.R   <- GP + HES extraction using a code list CSV
+│   └── extract_medications.R    <- prescription extraction: BNF and regex approaches
+├── docs/
+│   ├── _quarto.yml        <- site configuration (theme, navbar, footer)
+│   ├── index.qmd          <- this page
+│   ├── getting-started-ukb.qmd
+│   ├── code-lists-guide.qmd
+│   ├── guide-to-functions.qmd
+│   ├── dataset-reference.qmd
+│   └── common-mistakes.qmd
+└── .github/
+    └── workflows/
+        └── publish.yml    <- GitHub Actions: render site and deploy to GitHub Pages
+```
