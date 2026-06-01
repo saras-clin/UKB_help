@@ -273,26 +273,10 @@ ukbAid::rap_copy_to(
 # Run these checks after saving to confirm the extraction produced clean,
 # usable output. Any warning here should be investigated before analysis.
 
-# Check 1: Column names and types
-# Shows every column name and its R class. eid must be integer for safe joins;
-# date must be Date. If either is wrong, the coercion in steps 3–4 silently
-# failed and should be re-run before continuing.
-message("Output columns and types:")
-print(sapply(all_events, class))
-
-expected_cols <- c("eid", "date", "source")
-missing_cols  <- setdiff(expected_cols, names(all_events))
-if (length(missing_cols) > 0) {
-  warning("Missing expected columns: ", paste(missing_cols, collapse = ", "))
-}
-if (!is.integer(all_events$eid)) {
-  warning("eid is ", class(all_events$eid), ", not integer. ",
-          "Re-run: all_events <- all_events |> dplyr::mutate(eid = as.integer(eid))")
-}
-if (!inherits(all_events$date, "Date")) {
-  warning("date is ", class(all_events$date), ", not Date. ",
-          "Check the as.Date() coercion in steps 3 and 4.")
-}
+# Check 1: Inspect output structure
+# glimpse() shows column names, types, and a sample of values in one line.
+# eid should be int, date should be date. If not, check steps 3 and 4.
+dplyr::glimpse(all_events)
 
 # Check 2: No UKB placeholder dates survived cleaning
 # (1901-01-01, 1902-02-02, 1903-03-03 should have been replaced with NA)

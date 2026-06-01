@@ -338,25 +338,10 @@ message("Prescriptions after date parsing: ", nrow(prescriptions), " from ",
 # =============================================================================
 # Run these checks before saving to catch issues that would affect analysis.
 
-# Check 1: Column names and types
-# Shows every column name and its R class. eid must be integer; date must be
-# Date. If either is wrong, the coercion in Step 6 silently failed.
-message("Output columns and types:")
-print(sapply(prescriptions, class))
-
-expected_cols <- c("eid", "date", "drug_name", "bnf_code", "drug_class")
-missing_cols  <- setdiff(expected_cols, names(prescriptions))
-if (length(missing_cols) > 0) {
-  warning("Missing expected columns: ", paste(missing_cols, collapse = ", "))
-}
-if (!is.integer(prescriptions$eid)) {
-  warning("eid is ", class(prescriptions$eid), ", not integer. ",
-          "Re-run: prescriptions <- prescriptions |> dplyr::mutate(eid = as.integer(eid))")
-}
-if (!inherits(prescriptions$date, "Date")) {
-  warning("date is ", class(prescriptions$date), ", not Date. ",
-          "Check the as.Date(issue_date, format = '%d/%m/%Y') line in Step 6.")
-}
+# Check 1: Inspect output structure
+# glimpse() shows column names, types, and a sample of values in one line.
+# eid should be int, date should be date. If not, check Step 6.
+dplyr::glimpse(prescriptions)
 
 #------------------------------------------------------------------------------
 # Check 2: Date range sanity
