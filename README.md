@@ -1,4 +1,4 @@
-# UK Biobank Clinical Data Guide
+# UK Biobank Help
 
 A practical guide for new UK Biobank users at Steno Diabetes Center Aarhus working with clinical records on the Research Analysis Platform (RAP).
 

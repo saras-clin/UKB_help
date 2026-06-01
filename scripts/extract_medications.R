@@ -329,16 +329,59 @@ prescriptions <- prescriptions_raw |>
   ) |>
   dplyr::select(eid, date, drug_name, bnf_code, drug_class)  # KEEP
 
-# Check the distribution of drug classes:
-prescriptions |>
-  dplyr::count(drug_class, sort = TRUE)
-
 message("Prescriptions after date parsing: ", nrow(prescriptions), " from ",
         length(unique(prescriptions$eid)), " participants")
 
 
 # =============================================================================
-# Step 7: Save
+# Step 7: Validate output
+# =============================================================================
+# Run these checks before saving to catch issues that would affect analysis.
+
+# Check 1: eid is integer — required for safe joins with the main dataset
+stopifnot("eid must be integer" = is.integer(prescriptions$eid))
+message("OK: eid is integer.")
+
+# Check 2: Date range sanity
+# UKB GP prescription records run approximately 1990–2017.
+# Dates after today indicate a parsing problem (check the format = "%d/%m/%Y" line).
+date_range <- range(prescriptions$date, na.rm = TRUE)
+message("Date range: ", date_range[1], " to ", date_range[2])
+if (date_range[2] > Sys.Date()) {
+  warning("Future prescription dates found — check date format in Step 6 ",
+          "(expected format: '%d/%m/%Y').")
+}
+
+# Check 3: "other_matched" rows
+# These matched DRUG_PATTERN but were not assigned a named class. A large
+# count suggests your case_when() blocks are incomplete — inspect the drug
+# names and add a new block for any that should have their own class.
+n_other <- sum(prescriptions$drug_class == "other_matched")
+if (n_other > 0) {
+  message(n_other, " rows are 'other_matched'. ",
+          "Top drug names not yet classified:")
+  print(
+    prescriptions |>
+      dplyr::filter(drug_class == "other_matched") |>
+      dplyr::count(drug_name, sort = TRUE) |>
+      head(20)
+  )
+} else {
+  message("OK: all rows have a named drug class.")
+}
+
+# Check 4: Drug class distribution
+message("Drug class breakdown:")
+print(prescriptions |> dplyr::count(drug_class, sort = TRUE))
+
+# Check 5: Participant coverage
+message(length(unique(prescriptions$eid)),
+        " participants have at least one prescription. ",
+        "Compare to your cohort size to assess coverage.")
+
+
+# =============================================================================
+# Step 8: Save
 # =============================================================================
 arrow::write_parquet(prescriptions, here::here("data/prescription_events.parquet"))
 

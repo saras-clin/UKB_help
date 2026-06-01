@@ -1,0 +1,330 @@
+---
+title: "Data Management"
+subtitle: "Renaming, recoding, type conversion, and quality checks for your UKB dataset"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 3
+---
+
+::: {.callout-important}
+### All code on this page is example code
+
+UK Biobank studies differ widely in which variables are extracted, what
+recoding makes sense, and what quality checks are relevant. Every example
+here must be reviewed and adapted to your own study variables. The Field IDs,
+category codes, and column names used are illustrations — yours will differ.
+:::
+
+This page walks through [`scripts/manage_dataset.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/manage_dataset.R),
+which covers the steps between loading your raw extracted dataset and having
+a clean, analysis-ready file.
+
+- [Step 1: Inspect](#sec-inspect)
+- [Step 2: Rename variables](#sec-rename)
+- [Step 3: Convert variable types](#sec-types)
+- [Step 4: Recode categoricals to factors](#sec-recode)
+- [Step 5: Create derived variables](#sec-derived)
+- [Step 6: Data quality checks](#sec-checks)
+
+---
+
+## Step 1: Inspect {#sec-inspect}
+
+Before changing anything, run these to see exactly what you have:
+
+```r
+dplyr::glimpse(dataset)   # names, types, and sample values for every column
+names(dataset)            # just the column names
+sapply(dataset, class)    # type of each column as a named vector
+```
+
+UK Biobank column names follow a `p<FieldID>` format, with `_i0`, `_i1` etc.
+for repeated measures (instances). For example:
+
+| Column name | Meaning |
+|---|---|
+| `p31` | Sex |
+| `p34` | Year of birth |
+| `p53_i0` | Date of baseline assessment (Instance 0) |
+| `p53_i1` | Date of assessment (Instance 1) |
+| `p191` | Date lost to follow-up |
+
+Look up any Field ID on the [UK Biobank Data Showcase](https://biobank.ndph.ox.ac.uk/showcase/).
+
+---
+
+## Step 2: Rename variables {#sec-rename}
+
+UKB column names (`p31`, `p34_i0`, etc.) are not self-documenting. Renaming
+them early makes every subsequent line of code easier to read and reduces
+the risk of using the wrong column.
+
+```r
+rename_variables <- function(data) {
+  renames <- c(
+    sex                     = "p31",
+    year_birth              = "p34",
+    month_birth             = "p52",
+    date_baseline           = "p53_i0",
+    date_lost_to_followup   = "p191",
+    current_tobacco_smoking = "p1239_i0",
+    ethnicity               = "p21000_i0",
+    physical_activity       = "p22032_i0"
+  )
+  renames_present <- renames[renames %in% names(data)]
+  dplyr::rename(data, dplyr::all_of(renames_present))
+}
+
+dataset <- rename_variables(dataset)
+```
+
+The `renames_present` line filters to only columns that actually exist in
+your dataset — this prevents errors if a field was not included in your
+extraction.
+
+---
+
+## Step 3: Convert variable types {#sec-types}
+
+After loading from parquet, check that each column has the correct R type.
+Parquet usually preserves types well, but mismatches are common for dates
+and IDs.
+
+```r
+convert_variable_types <- function(data) {
+  data |>
+    dplyr::mutate(
+      eid = as.integer(eid),              # always integer for safe joins
+
+      date_baseline         = as.Date(date_baseline),
+      date_lost_to_followup = as.Date(date_lost_to_followup),
+
+      year_birth  = as.integer(year_birth),
+      month_birth = as.integer(month_birth)
+    )
+}
+
+dataset <- convert_variable_types(dataset)
+```
+
+To check all types at once:
+
+```r
+sapply(dataset, class)
+```
+
+::: {.callout-warning}
+### eid must always be integer
+
+`eid` must be the same type in every table before joining. A mismatch between
+integer and character eid silently produces zero rows with no error. Always
+coerce to `as.integer(eid)` in every data frame before a join.
+:::
+
+---
+
+## Step 4: Recode categorical variables to factors {#sec-recode}
+
+UKB stores categorical variables as integers (e.g. Sex: 0 = Female, 1 = Male).
+Converting to R factors with human-readable labels makes tables and plots
+self-documenting and prevents accidental arithmetic on categorical data.
+
+::: {.callout-note}
+### UKB negative codes mean something specific
+
+UK Biobank uses negative integers for special responses:
+
+- **-1** = Do not know
+- **-3** = Prefer not to answer
+- **-7** = None of the above (some fields)
+
+These are different from `NA` (not linked, or question not asked). Give them
+explicit labels rather than collapsing them into "Unknown".
+:::
+
+```r
+recode_variables <- function(data) {
+  data |>
+    dplyr::mutate(
+
+      # Field 31: Sex
+      sex_cat = factor(
+        dplyr::case_when(
+          sex == 0   ~ "Female",
+          sex == 1   ~ "Male",
+          is.na(sex) ~ NA_character_,
+          TRUE       ~ "Unknown"
+        ),
+        levels = c("Female", "Male", "Unknown")
+      ),
+
+      # Field 1239: Current tobacco smoking
+      current_tobacco_smoking_cat = factor(
+        dplyr::case_when(
+          current_tobacco_smoking ==  0  ~ "No",
+          current_tobacco_smoking ==  1  ~ "Yes",
+          current_tobacco_smoking == -3  ~ "Prefer not to answer",
+          is.na(current_tobacco_smoking) ~ NA_character_,
+          TRUE                           ~ "Unknown"
+        ),
+        levels = c("No", "Yes", "Prefer not to answer", "Unknown")
+      ),
+
+      # Field 21000: Ethnicity
+      # UKB uses hierarchical codes — both parent (e.g. 1 = White) and
+      # sub-codes (e.g. 1001 = British, 1002 = Irish) appear. Group both.
+      ethnicity_group = factor(
+        dplyr::case_when(
+          ethnicity %in% c(1, 1001, 1002, 1003)       ~ "White",
+          ethnicity %in% c(2, 2001, 2002, 2003, 2004) ~ "Mixed",
+          ethnicity %in% c(3, 3001, 3002, 3003, 3004) ~ "Asian",
+          ethnicity %in% c(4, 4001, 4002, 4003)       ~ "Black",
+          ethnicity %in% c(5, 5001)                   ~ "Chinese",
+          ethnicity %in% c(6, 6001, 6002)             ~ "Other",
+          is.na(ethnicity)                            ~ NA_character_,
+          TRUE                                        ~ "Unknown / not coded"
+        ),
+        levels = c("White", "Mixed", "Asian", "Black", "Chinese", "Other",
+                   "Unknown / not coded")
+      ),
+
+      # Field 22032: Physical activity
+      physical_activity_cat = factor(
+        dplyr::case_when(
+          physical_activity == 0   ~ "Low",
+          physical_activity == 1   ~ "Moderate",
+          physical_activity == 2   ~ "High",
+          is.na(physical_activity) ~ NA_character_,
+          TRUE                     ~ "Unknown"
+        ),
+        levels = c("Low", "Moderate", "High", "Unknown")
+      )
+    )
+}
+
+dataset <- recode_variables(dataset)
+```
+
+### How `case_when()` works here
+
+`case_when()` evaluates conditions in order and assigns the label from the
+first match. The three parts of each line are:
+
+```
+condition  ~  "label"
+```
+
+The final `TRUE ~ "Unknown"` is a catch-all: any row that did not match any
+earlier condition lands here. A large "Unknown" count usually means a code
+appears in your data that is not in the `case_when()` blocks — check with:
+
+```r
+table(dataset$sex, useNA = "ifany")          # raw numeric codes
+table(dataset$sex_cat, useNA = "ifany")      # after recoding
+```
+
+---
+
+## Step 5: Create derived variables {#sec-derived}
+
+Some variables useful for analysis are not in the raw UKB fields but can be
+calculated from them.
+
+### Age at baseline
+
+UKB provides year and month of birth but not day (for participant privacy).
+Using the 15th of the month is a common convention.
+
+```r
+create_derived_variables <- function(data) {
+  data |>
+    dplyr::mutate(
+
+      # Approximate date of birth (day set to 15th — see note above)
+      date_birth = as.Date(
+        paste(year_birth, sprintf("%02d", month_birth), "15", sep = "-")
+      ),
+
+      # Age at baseline (decimal years)
+      age_baseline = as.numeric(
+        difftime(date_baseline, date_birth, units = "days")
+      ) / 365.25,
+
+      # Age group
+      age_group = cut(
+        age_baseline,
+        breaks = c(39, 49, 59, 69, Inf),
+        labels = c("40–49", "50–59", "60–69", "70+"),
+        right  = TRUE
+      )
+    )
+}
+```
+
+::: {.callout-note}
+### UKB baseline recruitment
+
+UK Biobank recruited participants aged 40–69 between 2006 and 2010. If your
+calculated age at baseline falls outside this range for most participants,
+check `year_birth` and `date_baseline` for parsing errors.
+:::
+
+---
+
+## Step 6: Data quality checks {#sec-checks}
+
+Run these before analysis. They catch problems that produce silent errors or
+biased results.
+
+### Duplicate eids
+
+Each participant should appear exactly once in the main dataset. Duplicates
+usually indicate a join in `setup.R` introduced extra rows — typically a
+one-to-many join where the right-hand table had multiple rows per participant.
+
+```r
+n_dup <- sum(duplicated(dataset$eid))
+if (n_dup > 0) {
+  warning(n_dup, " duplicate eids — check joins in setup.R")
+}
+```
+
+### Missingness summary
+
+```r
+missingness <- dataset |>
+  dplyr::summarise(dplyr::across(dplyr::everything(),
+                                 ~ mean(is.na(.)))) |>
+  tidyr::pivot_longer(dplyr::everything(),
+                      names_to  = "variable",
+                      values_to = "prop_missing") |>
+  dplyr::arrange(dplyr::desc(prop_missing))
+
+print(missingness |> dplyr::filter(prop_missing > 0.10))
+```
+
+High missingness in core variables (sex, age, date_baseline) is unusual.
+High missingness in optional fields (physical activity, dietary measures) is
+common and expected in UKB — these questions were not asked at all instances.
+
+### Implausible values
+
+```r
+# Age at baseline: UKB range is 40–69 at recruitment
+range(dataset$age_baseline, na.rm = TRUE)
+
+# Dates: should not be in the future
+max(dataset$date_baseline, na.rm = TRUE)
+```
+
+### Factor distributions
+
+Always check recoded factors immediately after recoding. Unexpected "Unknown"
+values indicate codes in your data that your `case_when()` blocks do not cover.
+
+```r
+table(dataset$sex_cat, useNA = "ifany")
+table(dataset$ethnicity_group, useNA = "ifany")
+```

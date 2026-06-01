@@ -265,3 +265,61 @@ ukbAid::rap_copy_to(
   local_path = here::here("data/diagnosis_events.parquet"),
   rap_path   = "/users/your_username/diagnosis_events.parquet"  # Replace path
 )
+
+
+# =============================================================================
+# Step 6: Validate output
+# =============================================================================
+# Run these checks after saving to confirm the extraction produced clean,
+# usable output. Any warning here should be investigated before analysis.
+
+# Check 1: eid is integer — required for safe joins with the main dataset
+stopifnot(
+  "eid must be integer — check coercion in steps 3 and 4" =
+    is.integer(all_events$eid)
+)
+message("OK: eid is integer.")
+
+# Check 2: No UKB placeholder dates survived cleaning
+# (1901-01-01, 1902-02-02, 1903-03-03 should have been replaced with NA)
+n_placeholder <- sum(all_events$date %in% PLACEHOLDER_DATES, na.rm = TRUE)
+if (n_placeholder > 0) {
+  warning(n_placeholder, " rows still contain UKB placeholder dates — ",
+          "check the PLACEHOLDER_DATES definition at the top of this script.")
+} else {
+  message("OK: no placeholder dates in output.")
+}
+
+# Check 3: source column contains only "GP" and "HES"
+unexpected_source <- setdiff(unique(all_events$source), c("GP", "HES"))
+if (length(unexpected_source) > 0) {
+  warning("Unexpected values in source column: ",
+          paste(unexpected_source, collapse = ", "))
+} else {
+  message("OK: source values are GP and HES only.")
+}
+
+# Check 4: Date range sanity
+# UKB GP records begin when participants registered with their practice
+# (earliest ~1938); HES begins 1987. Events after today indicate a data error.
+date_range <- range(all_events$date, na.rm = TRUE)
+message("Date range: ", date_range[1], " to ", date_range[2])
+if (date_range[1] < as.Date("1930-01-01")) {
+  warning("Dates before 1930 found — possible remaining placeholder or ",
+          "implausible dates in source data.")
+}
+if (date_range[2] > Sys.Date()) {
+  warning("Future dates found — check for data entry errors in source data.")
+}
+
+# Check 5: Distribution of events per participant
+# Very high counts may be expected for common or chronic conditions,
+# but extreme values can indicate a join error or miscoded condition label.
+event_freq <- table(all_events$eid)
+message("Events per participant: median = ", median(event_freq),
+        ", max = ", max(event_freq))
+n_high <- sum(event_freq > 50)
+if (n_high > 0) {
+  message(n_high, " participants have >50 events — ",
+          "check whether this is expected for your condition(s).")
+}
