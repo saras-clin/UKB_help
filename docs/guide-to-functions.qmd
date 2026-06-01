@@ -14,8 +14,6 @@ intuition, a minimal code example, and any non-obvious behaviour worth
 knowing.
 
 ::: {.callout-tip}
-### The nine most important functions — start here
-
 | Function | Script | What it does in one sentence |
 |---|---|---|
 | `pak::pak()` | `setup.R` | Installs R packages, including those on GitHub |
