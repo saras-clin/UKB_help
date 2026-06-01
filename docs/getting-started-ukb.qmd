@@ -107,7 +107,7 @@ query — which rows to keep, which columns to select — and only the matching
 rows are loaded into R memory when you call `collect()`. Opening the dataset
 with `open_delim_dataset()` is instant; the work happens at `collect()`.
 
-See [The pattern you will use again and again](#sec-pattern) below for a
+See [How Arrow lazy loading works](#sec-pattern) below for a
 worked example.
 :::
 
@@ -139,11 +139,13 @@ for details.
 
 ---
 
-## The pattern you will use again and again {#sec-pattern}
+## How Arrow lazy loading works {#sec-pattern}
 
-The central pattern for working with large files on RAP is: **open lazily,
-filter inside Arrow, then collect**. Here it is applied to the GP
-prescriptions file:
+When working with the GP prescriptions file (57 million rows), you cannot
+load it into R memory directly — it will crash your session. Arrow solves this
+with lazy evaluation: **open the file, push filters into the scan, then
+collect only matching rows**. Here is the pattern used in
+`extract_medications.R`:
 
 ```r
 library(arrow)

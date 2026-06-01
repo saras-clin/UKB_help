@@ -75,6 +75,30 @@ check that message to confirm they were recognised.
 Each coding system has a fixed format. Using the wrong format is a common
 source of silent failures where no records are returned.
 
+::: {.callout-note}
+### Background: Read v2 and CTV3
+
+**Read v2** was developed by Dr. James Read, a UK general practitioner, in
+1982 and became the NHS standard coding system for GP records in England and
+Wales in the early 1990s. It remained the dominant system in practices using
+INPS Vision software until the mid-2010s.
+
+**CTV3** (Clinical Terms Version 3, also called Read Codes v3) was developed
+in the late 1990s as part of an NHS initiative to align GP coding with
+SNOMED CT. It was adopted from around 2000 onwards, primarily in practices
+using EMIS software.
+
+Both systems appear in UK Biobank GP records because different practices used
+different software. UKB GP data spans roughly 1985–2016 — a period when both
+coding schemes were in active use. A participant's GP records may contain
+Read v2 codes, CTV3 codes, or a mix of both depending on which system their
+practice used and when. This is why code lists must include both vocabularies
+to capture all relevant events.
+
+CTV3 was itself superseded by SNOMED CT in NHS primary care systems from 2018
+onwards, but this falls after the main UKB data collection window.
+:::
+
 | Vocabulary | Format | Length | Example | Notes |
 |---|---|---|---|---|
 | **Read v2** | Letters and numbers, dots fill unused positions | Always 5 characters | `F1200`, `F12..` | Dots are literal characters, not wildcards — see below |

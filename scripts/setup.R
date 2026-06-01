@@ -191,13 +191,19 @@ dataset <- arrow::read_parquet(here::here("data/dataset.parquet"))
 # =============================================================================
 # 6. Extract GP diagnoses and medications
 # =============================================================================
-# PREREQUISITE — run this ONCE per project before any GP or HES extraction.
-# export_tables() submits a table-exporter job that copies ~10 GB of linked
-# UKB data (GP clinical, HES, cancer registry, death records) to RAP persistent
-# storage. ukbrapR::get_diagnoses() will not find any data until this is done.
-# You do not need to repeat it in future sessions — only when setting up a new project.
+# According to the ukbrapR documentation, export_tables() must be run ONCE per
+# project before get_diagnoses() will return any data. It submits a job that
+# copies ~10 GB of linked UKB data (GP clinical, HES, cancer registry, death
+# records) to RAP persistent storage. You do not need to repeat it in future
+# sessions — the exported files persist.
+#
+# NOTE FOR DISCUSSION: UKDC's extraction scripts call get_diagnoses() without
+# first running export_tables() and return diagnoses correctly. It is unclear
+# whether the linked tables are already present in this project's RAP storage
+# from a prior step, or whether this step is truly required. Clarify with
+# supervisors before advising others to run or skip it.
 
-# ukbrapR::export_tables()   # <-- uncomment and run once, then comment out again
+# ukbrapR::export_tables()   # <-- uncomment and run once if needed, then comment out again
 
 # GP clinical records, HES diagnoses, and GP prescriptions are then extracted
 # using dedicated scripts. Open the relevant script and follow the instructions

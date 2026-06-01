@@ -21,6 +21,12 @@
 #           to be mutually exclusive, so there is no double-counting.
 #           This principle applies to any drug class, not just diabetes.
 #
+# Important: gp_scripts contains community (primary care) prescriptions only.
+#            Medications dispensed during hospital stays or outpatient visits
+#            are NOT captured here. For drugs commonly used in secondary care
+#            (e.g. inpatient insulin, IV antibiotics), this file will
+#            systematically undercount use in hospitalised patients.
+#
 # Inputs  : /mnt/project/ukbrapr_data/gp_scripts.tsv  (raw, ~57M rows)
 #           or a pre-converted parquet version of the same file.
 #
@@ -138,7 +144,11 @@ if (!is.null(BNF_PREFIX)) {
 
   bnf_rows <- ds |>
     dplyr::select(eid, issue_date, drug_name, bnf_code) |>
-    dplyr::filter(grepl(paste0("^", BNF_PREFIX), bnf_code)) |>  # Arrow evaluates during scan
+    # paste0("^", BNF_PREFIX) builds a pattern like "^0601".
+    # The ^ means "must start with" — so "060112345" matches but a code
+    # that happens to contain "0601" elsewhere would not.
+    # Arrow pushes this filter into the file scan; only matching rows are read.
+    dplyr::filter(grepl(paste0("^", BNF_PREFIX), bnf_code)) |>
     dplyr::collect()                                             # Only now does data enter R
 
   message("  BNF-confirmed rows: ", nrow(bnf_rows))
@@ -160,6 +170,11 @@ if (!is.null(BNF_PREFIX)) {
 
 message("Testing DRUG_PATTERN on a 1000-row sample...")
 
+# Note: head(1000) returns the FIRST 1000 rows of the file — not a random
+# sample. These rows may come from a small number of GP practices or a narrow
+# date range, so naming conventions in the sample may not reflect the full
+# dataset. Use the matched/unmatched output below as a quick sanity check,
+# not as an exhaustive test of your pattern.
 sample_names <- ds |>
   dplyr::select(drug_name) |>
   dplyr::filter(!is.na(drug_name)) |>
@@ -198,8 +213,12 @@ message("Approach 2: drug name regex (rows without BNF ", BNF_PREFIX, ")...")
 drug_rows <- ds |>
   dplyr::select(eid, issue_date, drug_name, bnf_code) |>
   dplyr::filter(
-    is.na(bnf_code) | !grepl(paste0("^", BNF_PREFIX), bnf_code),  # Not BNF-confirmed
-    grepl(DRUG_PATTERN, drug_name, ignore.case = TRUE)             # Drug name matches
+    # Keep rows where bnf_code is missing/empty OR is a different chapter.
+    # This is the complement of Approach 1: every row that BNF filtering
+    # either missed (no code) or excluded (wrong chapter).
+    is.na(bnf_code) | !grepl(paste0("^", BNF_PREFIX), bnf_code),
+    # Of those rows, keep only ones where drug_name matches your pattern.
+    grepl(DRUG_PATTERN, drug_name, ignore.case = TRUE)
   ) |>
   dplyr::collect()
 

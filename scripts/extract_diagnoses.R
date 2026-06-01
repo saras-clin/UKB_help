@@ -45,8 +45,16 @@
 # -----------------------------------------------------------------------------
 # UKB placeholder dates
 # -----------------------------------------------------------------------------
-# UK Biobank uses these three dates to represent missing or unknown dates in
-# GP records. They must be converted to NA before any date-based analysis.
+# UK Biobank GP records use three specific dates to encode "date unknown" or
+# "date not recorded". They are not real clinical dates — they look like valid
+# dates and will be silently treated as real events unless explicitly removed.
+#
+#   1901-01-01  — date unknown / not recorded
+#   1902-02-02  — date recorded as before the participant's GP registration
+#   1903-03-03  — date recorded as before study entry
+#
+# These must be replaced with NA before any date-based analysis (e.g. survival
+# analysis, time-to-event, or classifying prevalent vs incident cases).
 PLACEHOLDER_DATES <- as.Date(c("1901-01-01", "1902-02-02", "1903-03-03"))
 
 
@@ -107,9 +115,19 @@ message("Code list loaded: ", nrow(codes), " codes across ",
 #   $hesin_diag  — HES records (columns include: eid, epistart, diag_icd10, diag_icd9)
 #
 # Note: linked GP data is available for approximately 45% of UKB participants.
+# Coverage is unequal by country: England has the broadest coverage (~80% of
+# English participants are linked); Scotland and Wales have partial coverage;
+# Northern Ireland has very limited linkage. If your analysis compares across
+# UK nations, this differential coverage is a potential source of bias.
 # Participants without GP linkage will have no GP events — this is structural
 # absence, not missing data. Use has_gp_data (from demographics) to distinguish
 # "no GP linkage" from "GP-linked but no diagnosis".
+#
+# Important: get_diagnoses() returns ALL matching events across the follow-up
+# period — potentially multiple rows per participant if the code appears more
+# than once. This is intentional. If you need the first (earliest) event per
+# participant (e.g. for incident case classification), extract it downstream:
+#   gp_events |> dplyr::group_by(eid) |> dplyr::slice_min(date, n = 1)
 
 message("Querying UK Biobank records for ", nrow(codes), " codes ",
         "(", length(unique(codes$vocab_id)), " vocabularies)...")
@@ -127,7 +145,13 @@ gp_events <- NULL
 
 if (!is.null(raw$gp_clinical) && nrow(raw$gp_clinical) > 0) {
 
-  # Detect which code column ukbrapR used (name differs by version)
+  # Different ukbrapR versions name the GP code column differently:
+  #   read_2      — Read v2 code (older versions)
+  #   read_3      — CTV3 code (older versions)
+  #   read_code   — combined code column (some versions)
+  #   code        — generic name (newer versions)
+  # intersect() returns only those names from our list that actually exist in
+  # the returned data frame. [1] takes the first match found.
   code_col <- intersect(
     c("read_2", "read_3", "read_code", "code"),
     names(raw$gp_clinical)
@@ -142,8 +166,22 @@ if (!is.null(raw$gp_clinical) && nrow(raw$gp_clinical) > 0) {
   gp_events <- raw$gp_clinical |>
     dplyr::mutate(
       eid    = as.integer(eid),                       # Coerce to integer for safe joins
-      date   = as.Date(event_dt),                     # Standardise date column name
-      date   = dplyr::if_else(                        # Replace UKB placeholder dates with NA
+      date   = as.Date(event_dt),                     # Rename event_dt → date for consistency
+      # Replace UKB sentinel dates with NA.
+      # dplyr::if_else() takes three arguments:
+      #   1. condition  — is this date one of the three UKB placeholder values?
+      #   2. if TRUE    — replace with NA, typed as Date (as.Date(NA), not just NA)
+      #   3. if FALSE   — keep the original date unchanged
+      #
+      # Why as.Date(NA) and not plain NA?
+      #   dplyr::if_else() requires both branches to be the same type. Plain NA
+      #   is logical by default; as.Date(NA) is a Date-typed NA. Using plain NA
+      #   here would cause a type mismatch error.
+      #
+      # Why dplyr::if_else() and not base ifelse()?
+      #   Base ifelse() strips the Date class from the result and returns
+      #   a numeric vector. dplyr::if_else() preserves the Date class.
+      date   = dplyr::if_else(
         date %in% PLACEHOLDER_DATES, as.Date(NA), date
       ),
       source = "GP"
@@ -171,8 +209,13 @@ if (!is.null(raw$gp_clinical) && nrow(raw$gp_clinical) > 0) {
 # Step 4: Process HES diagnosis events
 # =============================================================================
 # HES records use epistart (episode start date) as the date column.
-# Both ICD-10 and ICD-9 columns are retained: HES uses ICD-9 before ~1995 and
-# ICD-10 thereafter. Querying ICD-10 alone misses diagnoses before 1995.
+# Both ICD-10 and ICD-9 columns are retained: HES switched from ICD-9 to
+# ICD-10 in April 1995. Querying ICD-10 alone misses diagnoses before 1995.
+#
+# HES data quality note: records before ~1997 are less complete and coding
+# consistency is lower. ICD-9 records in particular may be less reliable than
+# ICD-10. If your study is restricted to events after 1997, ICD-9 is less
+# critical — but including it avoids silently missing early cases.
 
 hes_events <- NULL
 
@@ -180,8 +223,11 @@ if (!is.null(raw$hesin_diag) && nrow(raw$hesin_diag) > 0) {
 
   hes_events <- raw$hesin_diag |>
     dplyr::mutate(
-      eid    = as.integer(eid),                       # Coerce to integer
-      date   = as.Date(epistart),                     # HES episode start date
+      eid    = as.integer(eid),                       # Coerce to integer for safe joins
+      date   = as.Date(epistart),                     # HES episode start date → renamed to date
+      # Same placeholder-date replacement as GP above: UKB uses 1901-01-01,
+      # 1902-02-02, and 1903-03-03 as sentinel values for unknown dates in HES
+      # records. Replace with typed Date NA to avoid treating them as real events.
       date   = dplyr::if_else(
         date %in% PLACEHOLDER_DATES, as.Date(NA), date
       ),

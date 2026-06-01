@@ -122,17 +122,12 @@ wrong-vs-correct code examples for each.
 
 ```{mermaid}
 flowchart TD
-    A[ukbAid layer] --> B[Request RAP access]
-    A --> C[Project setup and GitHub]
-    A --> D["Extract raw variables by Field ID<br/>ukbAid::proj_create_dataset()"]
-
-    E[This site] --> F["Extract GP and HES diagnoses<br/>extract_diagnoses.R"]
-    E --> G["Extract medication prescriptions<br/>extract_medications.R"]
-    E --> H["Build code lists<br/>code-lists-guide.qmd"]
-    E --> I["Reference clinical columns<br/>dataset-reference.qmd"]
-
-    D --> F
-    D --> G
+    A["Request RAP access<br/>(UK Biobank portal + DNAnexus)"]
+    A --> B["ukbAid: project setup & GitHub<br/>proj_setup_rap()"]
+    B --> C["ukbAid: extract UKB variables<br/>proj_create_dataset()"]
+    C --> D["This site: extract GP + HES diagnoses<br/>extract_diagnoses.R"]
+    C --> E["This site: extract medication prescriptions<br/>extract_medications.R"]
+    F["Code lists guide<br/>code-lists-guide.qmd"] --> D
 ```
 
 ---
