@@ -40,6 +40,15 @@
 #
 # Dependencies: ukbrapR, dplyr, readr, arrow, here
 # =============================================================================
+#
+# Contents:
+#   Step 1  Load your code list
+#   Step 2  Query UK Biobank records via ukbrapR
+#   Step 3  Process GP clinical events
+#   Step 4  Process HES diagnosis events
+#   Step 5  Combine and save
+#   Step 6  Validate output
+# =============================================================================
 
 
 # -----------------------------------------------------------------------------

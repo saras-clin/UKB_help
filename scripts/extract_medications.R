@@ -35,6 +35,18 @@
 #
 # Dependencies: arrow, dplyr, stringr, readr, here, ukbAid
 # =============================================================================
+#
+# Contents:
+#   Configuration  BNF chapter prefix and drug name pattern — edit before running
+#   Step 1         Open the prescriptions file lazily with Arrow
+#   Step 2         Approach 1 — BNF chapter filter
+#   Step 3         Test your regex pattern on a sample
+#   Step 4         Approach 2 — drug name regex on non-BNF rows
+#   Step 5         Combine both approaches
+#   Step 6         Parse dates and classify by drug class
+#   Step 7         Validate output
+#   Step 8         Save
+# =============================================================================
 
 
 # =============================================================================

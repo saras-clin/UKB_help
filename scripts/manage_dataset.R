@@ -24,6 +24,16 @@
 #
 # Dependencies: dplyr, lubridate, arrow, here, tidyr, ukbAid
 # =============================================================================
+#
+# Contents:
+#   Step 1  Inspect raw column names and types
+#   Step 2  Rename variables
+#   Step 3  Convert variable types
+#   Step 4  Recode categorical variables to labelled factors
+#   Step 5  Create derived variables
+#   Step 6  Data quality checks
+#   Step 7  Save clean dataset
+# =============================================================================
 
 library(dplyr)
 library(lubridate)
