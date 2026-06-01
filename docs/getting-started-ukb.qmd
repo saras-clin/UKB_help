@@ -8,40 +8,66 @@ format:
     toc-depth: 3
 ---
 
-## Before you read this
+## Set up your RAP session
 
-This page assumes you have already completed the
-[ukbAid initial setup](https://steno-aarhus.github.io/ukbAid/articles/initial-setup.html):
-you have RAP access, your GitHub personal access token is configured, and you
-can open an RStudio session on the RAP platform.
+Before you can work with any UK Biobank data, your RAP environment needs to
+be connected to your project and the necessary packages need to be installed.
+The RAP environment resets when a session ends — packages do not persist.
 
-If any function name on this page is unfamiliar, the
-[Function Guide](guide-to-functions.qmd) explains each one step by step.
+**Start with ukbAid.** If you have not already done so, complete the
+[ukbAid initial setup](https://steno-aarhus.github.io/ukbAid/articles/initial-setup.html).
+This covers requesting RAP access, configuring your GitHub personal access
+token, and creating your project repository. None of the scripts on this site
+will work without that foundation.
 
----
-
-## Before extracting GP or HES data: run `export_tables()` once
+**At the start of every RAP session**, run
+[`scripts/setup.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/setup.R).
+This script installs packages, reconnects your session to GitHub, loads your
+saved dataset, and guides you through the full workflow from raw extraction
+to saving your results.
 
 ::: {.callout-important}
-### One-time prerequisite for GP and HES extraction
+### Export linked tables once before your first extraction
 
-Before `ukbrapR::get_diagnoses()` will find any data, you must run a
-table-exporter job that copies the UKB linked tables (GP clinical, HES,
-cancer registry, death records) to RAP persistent storage. This is a
-**one-time step per RAP project** — you do not need to repeat it for every
-session.
-
-Run this in a fresh RAP RStudio session before anything else:
+Before extracting any GP or HES data, run this **once per RAP project**:
 
 ```r
 ukbrapR::export_tables()
 ```
 
-This submits a job that exports approximately 10 GB of linked data.
-It takes several minutes. You only need to do this once. After that,
-`ukbrapR::get_diagnoses()` reads from the exported files automatically —
-you never need to set a file path for GP or HES data.
+This submits a job that copies approximately 10 GB of linked clinical data
+(GP records, HES, cancer registry, death records) to RAP persistent storage.
+It takes several minutes. You never need to repeat it — subsequent sessions
+read from the exported files automatically.
 :::
+
+---
+
+## Extract diagnoses and medication data
+
+Once your session is set up and `export_tables()` has been run, you can
+extract clinical events for your study population. Two ready-to-use scripts
+are available.
+
+### Diagnoses — GP records and hospital episodes
+
+[`scripts/extract_diagnoses.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/extract_diagnoses.R)
+extracts diagnostic events from two sources:
+
+- **GP clinical records** — Read v2 and CTV3 codes from primary care
+- **Hospital Episode Statistics (HES)** — ICD-10 and ICD-9 codes from
+  inpatient admissions
+
+The script uses a code list CSV you provide (see the
+[Code Lists Guide](code-lists-guide.qmd) for how to build one) and queries
+both sources in a single call to `ukbrapR::get_diagnoses()`.
+
+### Medications — GP prescriptions
+
+[`scripts/extract_medications.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/extract_medications.R)
+extracts prescription records from the `gp_scripts` table (~57 million rows)
+using BNF chapter codes and/or drug-name regex patterns. The script uses
+Arrow lazy loading so only matching rows enter R memory.
 
 ---
 
@@ -124,9 +150,9 @@ result <- dplyr::collect(query)
 
 ```{mermaid}
 flowchart LR
-    A["open_delim_dataset()\nopen connection\n(no data yet)"] --> B["select()\nfilter()\nbuild lazy query"]
-    B --> C["collect()\nread matching rows\ninto R memory"]
-    C --> D["join / mutate\ndownstream work"]
+    A["open_delim_dataset()<br/>open connection<br/>(no data yet)"] --> B["select()<br/>filter()<br/>build lazy query"]
+    B --> C["collect()<br/>read matching rows<br/>into R memory"]
+    C --> D["join / mutate<br/>downstream work"]
 ```
 
 ### The most important rule: filter BEFORE collect

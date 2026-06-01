@@ -114,12 +114,12 @@ wrong-vs-correct code examples for each.
 flowchart TD
     A[ukbAid layer] --> B[Request RAP access]
     A --> C[Project setup and GitHub]
-    A --> D["Extract raw variables by Field ID\nukbAid::proj_create_dataset()"]
+    A --> D["Extract raw variables by Field ID<br/>ukbAid::proj_create_dataset()"]
 
-    E[This site] --> F["Extract GP clinical and HES records\nextract_diagnoses.R"]
-    E --> G["Extract medication prescriptions\nextract_medications.R"]
-    E --> H["Build and validate code lists\ncode-lists-guide.qmd"]
-    E --> I["Understand clinical columns\ndataset-reference.qmd"]
+    E[This site] --> F["Extract GP and HES diagnoses<br/>extract_diagnoses.R"]
+    E --> G["Extract medication prescriptions<br/>extract_medications.R"]
+    E --> H["Build code lists<br/>code-lists-guide.qmd"]
+    E --> I["Reference clinical columns<br/>dataset-reference.qmd"]
 
     D --> F
     D --> G
