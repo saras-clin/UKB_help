@@ -37,7 +37,7 @@ columns are useful but will not cause errors if absent.
 
 | Column | Required? | Example value | What it controls |
 |---|---|---|---|
-| `code` | **Required** | `G20..` | The diagnostic code to search for. Must be uppercase, no trailing whitespace. |
+| `code` | **Required** | `G20` | The diagnostic code to search for. Format depends on vocabulary — see the code format table below. Must be uppercase, no trailing whitespace. |
 | `condition` | **Required** | `parkinson` | A short label grouping codes for the same condition. Used to tag extracted events. All codes for one condition should share the same label. |
 | `vocab_id` | **Required** | `Read2` | Which coding system the code belongs to. Must be one of: `Read2`, `CTV3`, `ICD10`, `ICD9`. |
 | `Description` | Nice to have | `Parkinson's disease` | Human-readable description. Useful for review; not used by the script. |
@@ -60,21 +60,51 @@ check that message to confirm they were recognised.
 
 ---
 
+### Code format by vocabulary
+
+Each coding system has a fixed format. Using the wrong format is a common
+source of silent failures where no records are returned.
+
+| Vocabulary | Format | Length | Example | Notes |
+|---|---|---|---|---|
+| **Read v2** | Letters and numbers, dots fill unused positions | Always 5 characters | `F1200`, `F12..` | Dots are literal characters, not wildcards — see below |
+| **CTV3** | Letters and numbers, dots fill unused positions | Always 5 characters | `XE1cO`, `F1200` | Same rules as Read v2 |
+| **ICD-10** | Capital letter + 2 digits | 3 characters, no dots | `G20`, `E11`, `I10` | ukbrapR prefix-matches: `G20` catches `G20.0`, `G20.1`, etc. Do not include the dot. |
+| **ICD-9** | Digits only | 3 digits | `332`, `250` | 3-digit prefix is sufficient |
+
+::: {.callout-note}
+### What do the dots in Read v2 mean?
+
+Read v2 codes are always exactly 5 characters. When a code represents a
+broad category rather than a specific condition, the unused character
+positions are filled with dots.
+
+For example, `F12..` is a real, stored code meaning "Parkinson's disease"
+at the parent level. `F1200` is a specific subcode meaning "Parkinson's
+disease NOS". The dots in `F12..` are literally part of the code — they are
+not wildcards. Some GP records are coded at the parent level (`F12..`),
+others at a specific subcode (`F1200`). Include both to capture all records.
+:::
+
+---
+
 ### Worked example: a minimal code list
 
-Below is a small example for Parkinson's disease, covering all four
-vocabulary types. This is the format to use as a template.
+Below is an example for Parkinson's disease covering all four vocabulary
+types. Use this as a template.
 
 ```
 condition,vocab_id,code,Description
-parkinson,Read2,F12..,"Parkinson's disease"
-parkinson,Read2,F1200,"Parkinson's disease NOS"
-parkinson,CTV3,F1200,"Parkinson's disease"
-parkinson,CTV3,XE1cO,"Parkinson's disease - control"
-parkinson,ICD10,G20,"Parkinson's disease"
-parkinson,ICD10,G21,"Secondary parkinsonism"
-parkinson,ICD9,332,"Parkinson's disease"
+parkinson,Read2,F12..,"Parkinson's disease (parent code — 5 chars, dots are literal)"
+parkinson,Read2,F1200,"Parkinson's disease NOS (specific subcode)"
+parkinson,CTV3,XE1cO,"Parkinson's disease (5 chars)"
+parkinson,ICD10,G20,"Parkinson's disease (3 chars, no dot)"
+parkinson,ICD10,G21,"Secondary parkinsonism (3 chars, no dot)"
+parkinson,ICD9,332,"Parkinson's disease (3 digits)"
 ```
+
+The `Description` column is for your own reference — it is not used by the
+extraction script.
 
 Save this as a CSV file (e.g. `data-raw/parkinson_codes.csv`), then pass
 it to the extraction script:
