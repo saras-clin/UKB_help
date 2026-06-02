@@ -33,3 +33,6 @@ format:
     toc-depth: 3
     highlight-style: github
     code-fold: false
+
+mermaid:
+  theme: default
