@@ -69,8 +69,7 @@ library(arrow)      # Parquet read/write; memory-safe streaming of large files
 library(stringr)    # String matching: str_detect, str_subset, regex
 library(readr)      # CSV reading: read_csv, read_tsv
 library(here)       # File paths relative to project root (portable across machines)
-library(magrittr)   # Pipe operator (%>%) as alternative to the native |>
-library(vroom)      # Fast reading of moderately large CSV/TSV files
+library(magrittr)   # Pipe operator (%>%) — see guide-to-functions.qmd for explanation
 
 
 # =============================================================================
@@ -229,8 +228,9 @@ dataset <- arrow::read_parquet(here::here("data/dataset.parquet"))
 # ALWAYS coerce eid to integer on both sides before joining. A mismatch between
 # integer and character eid silently produces zero rows with no error or warning.
 #
-# CHOOSE ONE join type below (7.1, 7.2, or 7.3) based on your study question.
-# Run only the block that matches your design, then proceed to Section 8.
+# !! RUN ONLY ONE BLOCK below (7.1, 7.2, or 7.3) !!
+# Running more than one will silently overwrite analysis_dataset each time.
+# Choose based on your study question, then skip the other two entirely.
 #
 #   7.1  left_join  — keep ALL participants from your main dataset.
 #                    Non-cases get NA in event columns.

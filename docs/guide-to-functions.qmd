@@ -13,6 +13,47 @@ Each entry covers what the function does, an everyday analogy to build
 intuition, a minimal code example, and any non-obvious behaviour worth
 knowing.
 
+---
+
+## The pipe: `%>%`
+
+The most important symbol in all of the code is `%>%`, called "the pipe."
+
+```r
+all_events %>%
+  dplyr::filter(!is.na(date)) %>%
+  dplyr::select(eid, date, code) %>%
+  head(10)
+```
+
+**What it does:** The pipe sends the result from the left side as the first
+argument to the function on the right.
+
+**Analogy:** Think of cooking. You chop the onions — and pass them to the pan —
+which passes its contents to the plate. The pipe does exactly this: it chains
+steps together so you can read the code top to bottom, like a recipe. Without
+it, you would write the same thing from the inside out, like Russian nesting
+dolls:
+
+```r
+head(dplyr::select(dplyr::filter(all_events, !is.na(date)), eid, date, code), 10)
+```
+
+That is hard to read and hard to debug.
+
+::: {.callout-note}
+`%>%` and `|>` do the same thing — they are just two ways to write the pipe.
+
+`%>%` comes from the `magrittr` package, available when you load `dplyr`.
+`|>` is a built-in version added in R 4.1 — it requires no package.
+
+The two work identically in almost all situations. You will see both in R code
+online. The scripts in this guide use `%>%`, but if you write `|>` that is
+fine too.
+:::
+
+---
+
 ::: {.callout-tip}
 | Function | Script | What it does in one sentence |
 |---|---|---|

@@ -155,6 +155,7 @@ ukb-clinical-guide/        <- project root (future GitHub repository)
 ├── docs/
 │   ├── _quarto.yml           <- site configuration (theme, navbar, footer)
 │   ├── index.qmd             <- this page
+│   ├── start-here.qmd        <- step-by-step path for new users
 │   ├── getting-started-ukb.qmd
 │   ├── code-lists-guide.qmd
 │   ├── guide-to-functions.qmd

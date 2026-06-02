@@ -75,7 +75,8 @@ GP_SCRIPTS_PATH <- "/mnt/project/ukbrapr_data/gp_scripts.tsv"  # KEEP unless fil
 # To find the right chapter for your drug:
 #   1. Look up the drug on the NHS BNF website: https://bnf.nice.org.uk/
 #      Each drug page shows its BNF number (e.g. "4.1.1" for a hypnotic).
-#      OBS that this requires the user to be eligible. (See 3 if not eligible.)
+#      Note: the NHS BNF website requires an NHS or institutional login. If you
+#      do not have access, use option 3 instead.
 #   2. The bnf_code column in gp_scripts uses a zero-padded 4-digit prefix
 #      format: chapter "4" becomes "0401", chapter "2.12" becomes "0212".
 #   3. Cross-reference with the OpenPrescribing BNF browser:
@@ -83,7 +84,7 @@ GP_SCRIPTS_PATH <- "/mnt/project/ukbrapr_data/gp_scripts.tsv"  # KEEP unless fil
 #      and their actual prescription volumes in NHS data.
 #
 # Common chapters:
-#   "0601" — Drugs used in diabetes (OBS that Steno has an R-package (UKDC) to identify diabetes status)
+#   "0601" — Drugs used in diabetes (Note: Steno has an R package, UKDC, for classifying diabetes status)
 #   "0205" — Drugs affecting the renin-angiotensin system (ACE inhibitors, ARBs)
 #   "0206" — Diuretics
 #   "0212" — Lipid-regulating drugs (statins, fibrates)
@@ -92,7 +93,12 @@ GP_SCRIPTS_PATH <- "/mnt/project/ukbrapr_data/gp_scripts.tsv"  # KEEP unless fil
 #   "0801" — Cytotoxic drugs (cancer)
 #   "1001" — Drugs used in rheumatic diseases (DMARDs, NSAIDs)
 # Set to NULL to skip BNF filtering (not recommended: very slow on 57M rows).
-BNF_PREFIX <- "0601"                                 # Change to your BNF chapter
+# =============================================================================
+# !! EXAMPLE ONLY — REPLACE WITH YOUR OWN BNF CHAPTER !!
+# "0601" is the diabetes chapter. Replace with the chapter for YOUR drug class
+# before running. See the table above for common chapters.
+# =============================================================================
+BNF_PREFIX <- "0601"
 
 # =============================================================================
 # !! EXAMPLE ONLY — REPLACE WITH YOUR OWN DRUG NAMES !!

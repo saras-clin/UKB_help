@@ -7,6 +7,8 @@ website:
   site-url: https://saras-clin.github.io/UKB_help/
   navbar:
     left:
+      - href: start-here.qmd
+        text: Start Here
       - href: index.qmd
         text: Home
       - href: getting-started-ukb.qmd

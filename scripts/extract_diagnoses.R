@@ -46,8 +46,9 @@
 #   Step 2  Query UK Biobank records via ukbrapR
 #   Step 3  Process GP clinical events
 #   Step 4  Process HES diagnosis events
-#   Step 5  Combine and save
+#   Step 5  Combine
 #   Step 6  Validate output
+#   Step 7  Save
 # =============================================================================
 
 
@@ -210,7 +211,11 @@ if (!is.null(raw$gp_clinical) && nrow(raw$gp_clinical) > 0) {
           length(unique(gp_events$eid)), " participants")
 
 } else {
-  message("No GP clinical events returned.")
+  warning("No GP clinical events returned. Common causes:\n",
+          "  1. vocab_id values in your code list are wrong (must be Read2 or CTV3 for GP — no hyphens)\n",
+          "  2. Read v2 / CTV3 codes are not exactly 5 characters\n",
+          "  3. export_tables() may not have been run for this project (see script header)\n",
+          "  4. None of your codes appear in the GP records for this cohort")
 }
 
 
@@ -254,7 +259,7 @@ if (!is.null(raw$hesin_diag) && nrow(raw$hesin_diag) > 0) {
 
 
 # =============================================================================
-# Step 5: Combine and save
+# Step 5: Combine
 # =============================================================================
 # GP and HES events have different columns (code vs diag_icd10/diag_icd9).
 # bind_rows() fills missing columns with NA, which is correct here.
@@ -267,20 +272,11 @@ message("Source breakdown: ",
         paste(names(table(all_events$source)),
               table(all_events$source), sep = " = ", collapse = " | "))
 
-# Save locally and to RAP user folder (see setup.R for the save pattern)
-arrow::write_parquet(all_events, here::here("data/diagnosis_events.parquet"))
-
-ukbAid::rap_copy_to(
-  local_path = here::here("data/diagnosis_events.parquet"),
-  rap_path   = "/users/your_username/diagnosis_events.parquet"  # Replace path
-)
-
 
 # =============================================================================
 # Step 6: Validate output
 # =============================================================================
-# Run these checks after saving to confirm the extraction produced clean,
-# usable output. Any warning here should be investigated before analysis.
+# Run these checks BEFORE saving. If anything looks wrong, fix it first.
 
 # Check 1: Inspect output structure
 # glimpse() shows column names, types, and a sample of values in one line.
@@ -330,3 +326,14 @@ if (n_high > 0) {
   message(n_high, " participants have >50 events — ",
           "check whether this is expected for your condition(s).")
 }
+
+
+# =============================================================================
+# Step 7: Save
+# =============================================================================
+arrow::write_parquet(all_events, here::here("data/diagnosis_events.parquet"))
+
+ukbAid::rap_copy_to(
+  local_path = here::here("data/diagnosis_events.parquet"),
+  rap_path   = "/users/your_username/diagnosis_events.parquet"  # Replace path
+)

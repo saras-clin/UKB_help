@@ -1,0 +1,117 @@
+---
+title: "Start Here"
+subtitle: "A step-by-step path from zero to your first extraction"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 2
+---
+
+This page tells you exactly what to do and in what order. Follow it top to
+bottom the first time you use this site.
+
+---
+
+## Before you begin
+
+You need two things before any of the scripts on this site will work:
+
+1. **UK Biobank RAP access** — applied for through the UK Biobank portal and
+   the DNAnexus platform. If you do not have this yet, ukbAid's
+   [initial setup guide](https://steno-aarhus.github.io/ukbAid/initial-setup.html)
+   walks you through the full application process.
+
+2. **A GitHub project repository** — set up via ukbAid. The scripts connect
+   your RAP session to GitHub every time you open one. Without this, nothing
+   will save correctly.
+
+If you have completed the [ukbAid initial setup](https://steno-aarhus.github.io/ukbAid/initial-setup.html)
+and have a working RAP project, you are ready to continue.
+
+---
+
+## Session 1: First-time setup
+
+Open [`scripts/setup.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/setup.R)
+in your RAP RStudio session and run **steps 1–4** in order.
+
+| Step | What it does | Run when |
+|---|---|---|
+| **1** | Installs pak, cli, parquetize, ukbAid | Every session |
+| **2** | Connects your session to GitHub | Every session |
+| **3** | Installs ukbrapR and loads all libraries | Every session |
+| **4** | Extracts your chosen UKB variables to a parquet file | **Once** — then comment out |
+
+Step 4 takes 5–60 minutes depending on how many variables you request and
+current platform load. Do not close the session while it runs.
+
+::: {.callout-important}
+After step 4 finishes, **comment it out**. If you run it again in a future
+session it will re-extract everything and overwrite your saved file.
+:::
+
+---
+
+## Every session after
+
+At the start of each new RAP session, run **steps 1–3 and step 5**:
+
+- Steps 1–3: reinstall packages and reconnect to GitHub (the RAP environment
+  resets between sessions — nothing persists automatically)
+- Step 5: load your saved dataset from the parquet file (takes seconds)
+
+---
+
+## Your first extraction
+
+Once your dataset is loaded, decide what clinical data you need.
+
+### GP and hospital diagnoses
+
+If your study requires diagnostic events from GP records or hospital episodes:
+
+1. **Build a code list first.** Your extraction will find nothing without one.
+   Read the [Code Lists Guide](code-lists-guide.qmd) and create a CSV with
+   your condition codes (Read v2, CTV3, ICD-10, ICD-9).
+
+2. **Run `extract_diagnoses.R`.**
+   Open [`scripts/extract_diagnoses.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/extract_diagnoses.R),
+   point it at your code list CSV, and run it step by step.
+
+### Medication prescriptions
+
+If your study requires GP prescription data:
+
+1. **Run `extract_medications.R`.**
+   Open [`scripts/extract_medications.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/extract_medications.R)
+   and update the two configuration values at the top:
+   - `BNF_PREFIX` — the BNF chapter for your drug class
+   - `DRUG_PATTERN` — the drug names to match
+
+2. **Test your pattern on a sample** (Step 3 in the script) before running
+   on all 57 million rows.
+
+---
+
+## After extraction: join and save
+
+Return to `setup.R` and run **steps 7 and 8**:
+
+- **Step 7:** join your diagnosis and/or prescription events to your main
+  dataset by `eid`. Choose one join type (7.1, 7.2, or 7.3) — see the
+  comments for guidance on which fits your study design.
+- **Step 8:** save the result and copy it to your RAP user folder so it
+  survives session reset.
+
+---
+
+## Where to go next
+
+| I want to… | Go to |
+|---|---|
+| Understand the extraction scripts step by step | [Getting Started](getting-started-ukb.qmd) |
+| Build or find a diagnostic code list | [Code Lists Guide](code-lists-guide.qmd) |
+| Look up what a function does | [Function Guide](guide-to-functions.qmd) |
+| Check what columns are in the clinical data | [Dataset Reference](dataset-reference.qmd) |
+| Understand a silent error or unexpected result | [Common Mistakes](common-mistakes.qmd) |
