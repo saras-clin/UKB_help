@@ -56,7 +56,7 @@ your first extraction, and where to go next.
 :::
 
 ::: {.g-col-6}
-### [Extract Data Guide](getting-started-ukb.qmd)
+### [Extract Data](getting-started-ukb.qmd)
 How clinical data is stored on RAP, the Arrow query pattern for large files,
 UK Biobank Field IDs, primary care data availability, and a quick-reference
 table for common questions.

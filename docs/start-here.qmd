@@ -115,7 +115,7 @@ to combine your extracted datasets into a single analysis-ready file:
 
 | I want to… | Go to |
 |---|---|
-| Understand the extraction scripts step by step | [Extract Data Guide](getting-started-ukb.qmd) |
+| Understand the extraction scripts step by step | [Extract Data](getting-started-ukb.qmd) |
 | Build or find a diagnostic code list | [Code Lists](code-lists-guide.qmd) |
 | Merge datasets and derive first diagnosis dates | [Data Management](data-management.qmd) |
 | Look up what a function does | [Functions](guide-to-functions.qmd) |

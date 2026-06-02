@@ -12,7 +12,7 @@ website:
       - href: index.qmd
         text: Home
       - href: getting-started-ukb.qmd
-        text: Extract Data Guide
+        text: Extract Data
       - href: code-lists-guide.qmd
         text: Code Lists
       - href: guide-to-functions.qmd

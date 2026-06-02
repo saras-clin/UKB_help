@@ -1,5 +1,5 @@
 ---
-title: "Extract Data Guide"
+title: "Extract Data"
 subtitle: "Data sources, query patterns, and platform orientation for RAP"
 date: last-modified
 format:
