@@ -1,5 +1,5 @@
 ---
-title: "Function Guide"
+title: "Functions"
 subtitle: "Every function used in the extraction scripts, explained for a first-time reader"
 date: last-modified
 format:

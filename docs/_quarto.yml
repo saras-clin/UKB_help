@@ -12,11 +12,11 @@ website:
       - href: index.qmd
         text: Home
       - href: getting-started-ukb.qmd
-        text: Getting Started
+        text: Extract Data Guide
       - href: code-lists-guide.qmd
-        text: Code Lists Guide
+        text: Code Lists
       - href: guide-to-functions.qmd
-        text: Function Guide
+        text: Functions
       - href: data-management.qmd
         text: Data Management
       - href: dataset-reference.qmd

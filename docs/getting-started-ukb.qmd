@@ -1,5 +1,5 @@
 ---
-title: "Getting Started with UK Biobank Clinical Data"
+title: "Extract Data Guide"
 subtitle: "Data sources, query patterns, and platform orientation for RAP"
 date: last-modified
 format:
@@ -75,7 +75,7 @@ extracts diagnostic events from two sources:
   inpatient admissions
 
 The script uses a code list CSV you provide (see the
-[Code Lists Guide](code-lists-guide.qmd) for how to build one) and queries
+[Code Lists](code-lists-guide.qmd) for how to build one) and queries
 both sources in a single call to `ukbrapR::get_diagnoses()`.
 
 ### Medications — GP prescriptions
@@ -273,7 +273,7 @@ hes_hypertension <- hesin_diag |>
 |---|---|
 | How do I know if a participant has GP records? | Check `p42040 > 0` or `p42039 > 0` in demographics |
 | What does a date of 1901-01-01 mean? | Missing or unknown date — replace with NA before analysis |
-| Why does my BNF filter miss so many prescriptions? | ~23% of rows have no BNF code; add a drug-name regex fallback (see [Code Lists Guide](code-lists-guide.qmd)) |
+| Why does my BNF filter miss so many prescriptions? | ~23% of rows have no BNF code; add a drug-name regex fallback (see [Code Lists](code-lists-guide.qmd)) |
 | Why does my ICD query return no HES results before 1995? | HES used ICD-9 before ~1995 — query `diag_icd9` as well as `diag_icd10` |
 | My session crashed reading gp_scripts | You called `collect()` before filtering; always filter inside Arrow first |
 | My join on `eid` returned zero rows | One side has `eid` as integer, the other as character; coerce both with `as.integer(eid)` |

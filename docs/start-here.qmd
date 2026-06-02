@@ -72,7 +72,7 @@ Once your dataset is loaded, decide what clinical data you need.
 If your study requires diagnostic events from GP records or hospital episodes:
 
 1. **Build a code list first.** Your extraction will find nothing without one.
-   Read the [Code Lists Guide](code-lists-guide.qmd) and create a CSV with
+   Read the [Code Lists](code-lists-guide.qmd) guide and create a CSV with
    your condition codes (Read v2, CTV3, ICD-10, ICD-9).
 
 2. **Run `extract_diagnoses.R`.**
@@ -115,9 +115,9 @@ to combine your extracted datasets into a single analysis-ready file:
 
 | I want to… | Go to |
 |---|---|
-| Understand the extraction scripts step by step | [Getting Started](getting-started-ukb.qmd) |
-| Build or find a diagnostic code list | [Code Lists Guide](code-lists-guide.qmd) |
+| Understand the extraction scripts step by step | [Extract Data Guide](getting-started-ukb.qmd) |
+| Build or find a diagnostic code list | [Code Lists](code-lists-guide.qmd) |
 | Merge datasets and derive first diagnosis dates | [Data Management](data-management.qmd) |
-| Look up what a function does | [Function Guide](guide-to-functions.qmd) |
+| Look up what a function does | [Functions](guide-to-functions.qmd) |
 | Check what columns are in the clinical data | [Dataset Reference](dataset-reference.qmd) |
 | Understand a silent error or unexpected result | [Common Mistakes](common-mistakes.qmd) |

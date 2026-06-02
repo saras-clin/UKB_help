@@ -56,21 +56,21 @@ your first extraction, and where to go next.
 :::
 
 ::: {.g-col-6}
-### [Getting Started](getting-started-ukb.qmd)
+### [Extract Data Guide](getting-started-ukb.qmd)
 How clinical data is stored on RAP, the Arrow query pattern for large files,
 UK Biobank Field IDs, primary care data availability, and a quick-reference
 table for common questions.
 :::
 
 ::: {.g-col-6}
-### [Code Lists Guide](code-lists-guide.qmd)
+### [Code Lists](code-lists-guide.qmd)
 How to build your own diagnostic code list CSV, how to load validated code
 lists from Prigge et al. directly from GitHub, and where to find lists for
 over 200 conditions.
 :::
 
 ::: {.g-col-6}
-### [Function Guide](guide-to-functions.qmd)
+### [Functions](guide-to-functions.qmd)
 Every function used in the extraction scripts explained for a first-time
 reader — including the pipe `%>%`, with analogies and non-obvious behaviours.
 :::
@@ -112,7 +112,10 @@ flowchart TD
         D["Build code lists<br/>code-lists-guide.qmd"]
         E["Extract GP + HES diagnoses<br/>extract_diagnoses.R"]
         F["Extract medication prescriptions<br/>extract_medications.R"]
+        G["Merge & manage datasets<br/>manage_dataset.R"]
         D --> E
+        E --> G
+        F --> G
     end
 
     C --> E

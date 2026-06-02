@@ -37,7 +37,7 @@ prescriptions <- arrow::open_delim_dataset(path, delim = "\t") |>
   dplyr::collect()
 ```
 
-See [Getting Started](getting-started-ukb.qmd#sec-pattern) for the full
+See [Extract Data Guide](getting-started-ukb.qmd#sec-pattern) for the full
 Arrow query pattern.
 
 ---
