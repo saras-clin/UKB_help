@@ -44,11 +44,15 @@
 # Contents:
 #   Step 1  Load your code list
 #   Step 2  Query UK Biobank records via ukbrapR
-#   Step 3  Process GP clinical events
-#   Step 4  Process HES diagnosis events
-#   Step 5  Combine
-#   Step 6  Validate output
-#   Step 7  Save
+#            !! CHOOSE your approach after this step:
+#              Approach A (Steps 3–7): process all events manually → long format
+#              Approach B (end of file): use get_df() → wide format with binary flags
+#   Step 3  Process GP clinical events            [Approach A only]
+#   Step 4  Process HES diagnosis events          [Approach A only]
+#   Step 5  Combine                               [Approach A only]
+#   Step 6  Validate output                       [Approach A only]
+#   Step 7  Save                                  [Approach A only]
+#   Approach B  get_df() alternative              [skip Steps 3–7 if using this]
 # =============================================================================
 
 
@@ -143,6 +147,27 @@ message("Querying UK Biobank records for ", nrow(codes), " codes ",
         "(", length(unique(codes$vocab_id)), " vocabularies)...")
 
 raw <- ukbrapR::get_diagnoses(codes)
+
+# =============================================================================
+# CHOOSE YOUR APPROACH
+# =============================================================================
+# Both approaches start from the same get_diagnoses() call above. Choose based
+# on what your analysis needs:
+#
+# APPROACH A — all events (continue with Steps 3–7 below)
+#   Output: diagnosis_events.parquet  — long format, one row per event
+#   Use when: time-to-event analysis, event counting, need every occurrence date
+#
+# APPROACH B — first event per condition (jump to end of this script)
+#   Output: diagnosis_df.parquet — wide format, one row per participant
+#   Pre-computes: first GP date, first HES date, derived earliest date,
+#                 binary ever-diagnosed flag, pre-baseline binary flag
+#   Use when: prevalent/incident classification, multimorbidity research,
+#             only need to know if and when a participant was first diagnosed
+#
+# Run ONLY ONE approach. Steps 3–7 implement Approach A.
+# Approach B code is at the bottom of this script (commented out).
+# =============================================================================
 
 
 # =============================================================================
@@ -329,7 +354,7 @@ if (n_high > 0) {
 
 
 # =============================================================================
-# Step 7: Save
+# Step 7: Save  [Approach A]
 # =============================================================================
 arrow::write_parquet(all_events, here::here("data/diagnosis_events.parquet"))
 
@@ -337,3 +362,40 @@ ukbAid::rap_copy_to(
   local_path = here::here("data/diagnosis_events.parquet"),
   rap_path   = "/users/your_username/diagnosis_events.parquet"  # Replace path
 )
+
+
+# =============================================================================
+# Approach B: get_df() — wide format with pre-computed first dates and flags
+# =============================================================================
+# Use this INSTEAD OF Steps 3–7 above if you want one row per participant with
+# first diagnosis dates and binary flags per condition.
+#
+# Uncomment and run the block below. Do not also run Steps 3–7.
+#
+# Output columns for each condition:
+#   {condition}_gp_df   — first GP diagnosis date
+#   {condition}_hes_df  — first HES diagnosis date
+#   {condition}_df      — derived earliest date (GP, HES, cancer registry, death)
+#   {condition}_bin     — 1 if ever diagnosed, 0 if not
+#   {condition}_bin_pre — 1 if diagnosed before baseline date
+
+# diagnosis_df <- ukbrapR::get_df(raw, group_by = "condition")
+#
+# # Clean GP placeholder dates (UKB uses these to mean "unknown date"):
+# diagnosis_df <- diagnosis_df %>%
+#   dplyr::mutate(dplyr::across(
+#     dplyr::ends_with("_gp_df"),
+#     ~ dplyr::case_when(
+#       . == as.Date("1901-01-01") ~ as.Date(NA),
+#       . == as.Date("1902-02-02") ~ as.Date(NA),
+#       . == as.Date("1903-03-03") ~ as.Date(NA),
+#       TRUE ~ .
+#     )
+#   ))
+#
+# arrow::write_parquet(diagnosis_df, here::here("data/diagnosis_df.parquet"))
+#
+# ukbAid::rap_copy_to(
+#   local_path = here::here("data/diagnosis_df.parquet"),
+#   rap_path   = "/users/your_username/diagnosis_df.parquet"   # Replace path
+# )
