@@ -103,13 +103,13 @@ wrong-vs-correct code examples for each.
 flowchart TD
     subgraph ukbaid ["ukbAid"]
         A["Request RAP access"]
-        B["Project setup & GitHub<br/>proj_setup_rap()"]
-        C["Extract UKB variables<br/>proj_create_dataset()"]
+        B["Project setup & GitHub"]
+        C["Extract UKB variables"]
         A --> B --> C
     end
 
     subgraph site ["This site"]
-        D["Build code lists<br/>code-lists-guide.qmd"]
+        D["Build code lists"]
         E["Extract GP + HES diagnoses<br/>extract_diagnoses.R"]
         F["Extract medication prescriptions<br/>extract_medications.R"]
         G["Merge & manage datasets<br/>manage_dataset.R"]
