@@ -1,5 +1,5 @@
 ---
-title: "UK Biobank Clinical Data Guide"
+title: "UK Biobank Help"
 subtitle: "A companion resource to ukbAid for working with clinical records on RAP"
 date: last-modified
 format:
@@ -24,54 +24,23 @@ data.
 ## Before you start
 
 ::: {.callout-important}
-### Start with ukbAid
+### New to this site? Start with ukbAid first
 
-Before reading anything on this site, complete the
-[ukbAid setup](https://steno-aarhus.github.io/ukbAid/articles/initial-setup.html).
-This covers requesting RAP access, creating your GitHub account and personal
-access token, installing the ukbAid package, and cloning your project
-repository. None of the scripts on this site will work without that
-foundation in place.
-:::
+Before using any script on this site, complete the
+[ukbAid initial setup](https://steno-aarhus.github.io/ukbAid/initial-setup.html).
+This covers requesting RAP access, creating your GitHub personal access token,
+and cloning your project repository. None of the scripts here will work without
+that foundation.
 
-::: {.callout-important}
-### Install ukbrapR every session
-
-The RAP environment resets when a session ends — packages do not persist.
-At the start of every RAP RStudio session, install and load ukbrapR:
-
-```r
-pak::pak("lcpilling/ukbrapR")
-library(ukbrapR)
-```
-
-ukbrapR is used throughout this guide for GP clinical record extraction,
-Hospital Episode Statistics queries, and data management. The full session
-startup sequence is in [scripts/setup.R](../scripts/setup.R).
-:::
-
-::: {.callout-important}
-### `ukbrapR` documentation: run `export_tables()` once before GP or HES extraction
-
-According to the [`ukbrapR` README on GitHub](https://github.com/lcpilling/ukbrapR/blob/main/README.md),
-`get_diagnoses()` requires the linked tables to be exported to RAP persistent
-storage first — once per project:
-
-```r
-ukbrapR::export_tables()
-```
-
-This takes several minutes and exports approximately 10 GB. You never need
-to repeat it. See [Getting Started](getting-started-ukb.qmd) for details.
+Then go to **[Start Here](start-here.qmd)** for a step-by-step walkthrough of
+your first session.
 :::
 
 ::: {.callout-note}
-### Note for discussion
+### The RAP environment resets between sessions
 
-UKDC's extraction scripts call `get_diagnoses()` without first running
-`export_tables()` and return diagnoses correctly. Whether this step is truly
-required or is already handled upstream is unclear. **To clarify with
-supervisors.**
+Packages do not persist when a session ends. Run `scripts/setup.R` steps 1–3
+at the start of every RAP session to reinstall and reload everything.
 :::
 
 ---
@@ -79,6 +48,12 @@ supervisors.**
 ## Pages on this site
 
 ::: {.grid}
+
+::: {.g-col-6}
+### [Start Here](start-here.qmd)
+A step-by-step walkthrough for new users: first-session setup, how to run
+your first extraction, and where to go next.
+:::
 
 ::: {.g-col-6}
 ### [Getting Started](getting-started-ukb.qmd)
@@ -89,23 +64,27 @@ table for common questions.
 
 ::: {.g-col-6}
 ### [Code Lists Guide](code-lists-guide.qmd)
-How to build your own diagnostic code list CSV, how to write and test
-medication regex patterns, and where to download validated code lists for
+How to build your own diagnostic code list CSV, how to load validated code
+lists from Prigge et al. directly from GitHub, and where to find lists for
 over 200 conditions.
 :::
 
 ::: {.g-col-6}
 ### [Function Guide](guide-to-functions.qmd)
 Every function used in the extraction scripts explained for a first-time
-reader: what it does, an analogy, a minimal code example, and the non-obvious
-behaviours to watch for.
+reader — including the pipe `%>%`, with analogies and non-obvious behaviours.
+:::
+
+::: {.g-col-6}
+### [Data Management](data-management.qmd)
+How to merge diagnosis, prescription, and demographic datasets; GP linkage
+filtering; deriving first diagnosis dates; and renaming/recoding variables.
 :::
 
 ::: {.g-col-6}
 ### [Dataset Reference](dataset-reference.qmd)
 Confirmed column names for GP clinical records, HES diagnoses, GP
-prescriptions, and UKB demographics fields — with descriptions, types, and
-callouts for known quirks.
+prescriptions, and UKB demographics fields — with descriptions and quirks.
 :::
 
 ::: {.g-col-6}

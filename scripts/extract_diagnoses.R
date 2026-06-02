@@ -10,16 +10,17 @@
 #
 #           Must be run in the RAP RStudio environment.
 #
-# PREREQUISITE (run once per project before this script will work):
-#   ukbrapR must export the UKB linked tables to RAP persistent storage.
-#   This is a one-time table-exporter job (~10 GB, takes several minutes).
-#   Run in a fresh RAP RStudio session:
+# PREREQUISITE — note for discussion:
+#   The ukbrapR documentation states that get_diagnoses() will not return data
+#   until the linked tables have been exported to RAP persistent storage (once
+#   per project, ~10 GB, takes several minutes):
 #
 #     ukbrapR::export_tables()
 #
-#   This exports GP clinical, HES, cancer registry, and death records.
-#   ukbrapR::get_diagnoses() will not find any data until this has been run.
-#   You only need to do this once per RAP project.
+#   However, UKDC's extraction scripts call get_diagnoses() without first
+#   running export_tables() and return diagnoses correctly. Whether this step
+#   is truly required for this project's RAP setup is unclear.
+#   Clarify with supervisors before running or skipping this step.
 #
 # How data is accessed:
 #   ukbrapR handles all file paths internally. It reads from the exported
