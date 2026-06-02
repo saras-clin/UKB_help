@@ -151,7 +151,8 @@ ukb-clinical-guide/        <- project root (future GitHub repository)
 ├── scripts/
 │   ├── setup.R               <- session startup: packages, demographics, save pattern
 │   ├── extract_diagnoses.R   <- GP + HES extraction using a code list CSV
-│   └── extract_medications.R <- prescription extraction: BNF and regex approaches
+│   ├── extract_medications.R <- prescription extraction: BNF and regex approaches
+│   └── manage_dataset.R      <- merge datasets, derive first diagnosis dates
 ├── docs/
 │   ├── _quarto.yml           <- site configuration (theme, navbar, footer)
 │   ├── index.qmd             <- this page
@@ -159,6 +160,7 @@ ukb-clinical-guide/        <- project root (future GitHub repository)
 │   ├── getting-started-ukb.qmd
 │   ├── code-lists-guide.qmd
 │   ├── guide-to-functions.qmd
+│   ├── data-management.qmd
 │   ├── dataset-reference.qmd
 │   └── common-mistakes.qmd
 └── .github/

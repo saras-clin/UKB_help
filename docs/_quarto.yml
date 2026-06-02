@@ -17,6 +17,8 @@ website:
         text: Code Lists Guide
       - href: guide-to-functions.qmd
         text: Function Guide
+      - href: data-management.qmd
+        text: Data Management
       - href: dataset-reference.qmd
         text: Dataset Reference
       - href: common-mistakes.qmd

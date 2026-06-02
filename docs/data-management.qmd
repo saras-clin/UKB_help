@@ -1,0 +1,149 @@
+---
+title: "Data Management"
+subtitle: "Merging extracted datasets and deriving analysis variables"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 2
+---
+
+::: {.callout-important}
+All code on this page is example code — adapt to your own study variables before running.
+:::
+
+This page explains how to use [`scripts/manage_dataset.R`](https://github.com/saras-clin/UKB_help/blob/main/scripts/manage_dataset.R)
+to combine extracted datasets into a single analysis-ready file.
+
+---
+
+## What the data looks like after extraction
+
+After running the extraction scripts you have three separate data frames:
+
+| Data frame | Format | One row = |
+|---|---|---|
+| `dataset` | Wide | One participant |
+| `diagnosis_events` | **Long** | One diagnostic event |
+| `prescriptions` | **Long** | One prescription record |
+
+The diagnosis and prescription data frames are long — a participant with five
+AF records across GP and HES appears five times in `diagnosis_events`. The
+`source` column on each row tells you whether the event came from GP or HES.
+
+Always run `dplyr::glimpse()` on each data frame before merging, and again
+after. Joins change row counts and can silently coerce column types.
+
+---
+
+## GP data availability
+
+Only about 45% of UKB participants have linked GP records. Participants
+without GP linkage have **no GP events** in the extraction output — not
+because they had no diagnoses, but because their records were never linked.
+
+If your analysis uses GP data, restrict to GP-linked participants before
+analysis. Including non-linked participants treats "no GP records" as "no
+disease", which introduces systematic bias.
+
+Use UKB Field **p42040** (count of linked GP clinical event records) to
+identify GP-linked participants:
+
+```r
+dataset_gp <- dataset %>%
+  dplyr::filter(p42040 > 0)
+```
+
+Extract p42040, p42039, and p42038 in `setup.R` step 4 if not already done.
+See the [Dataset Reference](dataset-reference.qmd#sec-demographics) for details.
+
+---
+
+## Two approaches: all events vs. first event
+
+| | Approach A | Approach B |
+|---|---|---|
+| **Source** | `extract_diagnoses.R` output | `ukbrapR::get_df()` |
+| **Format** | Long — one row per event | Wide — one row per participant |
+| **What you get** | Every matching event with date and source | Pre-computed first dates + binary flags per condition |
+| **Use when** | Time-to-event, event counting, need all dates | Need to know if/when first diagnosed; multimorbidity; prevalent/incident classification |
+
+**Approach A** — derive first date yourself from the long format:
+
+```r
+first_diagnosis <- diagnosis_events %>%
+  dplyr::group_by(eid, condition) %>%
+  dplyr::slice_min(date, n = 1, with_ties = FALSE) %>%
+  dplyr::ungroup()
+```
+
+**Approach B** — `get_df()` returns a wide data frame with one row per
+participant. For each condition it creates:
+
+- `{condition}_gp_df` — first GP date
+- `{condition}_hes_df` — first HES date
+- `{condition}_df` — derived earliest date (GP, HES, cancer registry, death)
+- `{condition}_bin` — 1 if ever diagnosed, 0 if not
+- `{condition}_bin_pre` — 1 if diagnosed before baseline
+
+```r
+diagnosis_list <- ukbrapR::get_diagnoses(codes_df_combined)
+diagnosis_df   <- ukbrapR::get_df(diagnosis_list, group_by = "condition")
+```
+
+After `get_df()`, replace UKB placeholder dates in GP columns with NA —
+see `manage_dataset.R` Step 6 for the pattern.
+
+Note that GP first dates (`_gp_df`) and HES first dates (`_hes_df`) can
+differ for the same participant and condition. This is expected — a condition
+may be recorded earlier in primary care than in hospital records, or vice versa.
+The derived `_df` column takes the earliest date across all sources.
+
+---
+
+## Merging datasets
+
+Join by `eid`. Always coerce `eid` to integer in every table first — a type
+mismatch silently produces zero rows with no error:
+
+```r
+dataset         <- dataset         %>% dplyr::mutate(eid = as.integer(eid))
+first_diagnosis <- first_diagnosis %>% dplyr::mutate(eid = as.integer(eid))
+prescriptions   <- prescriptions   %>% dplyr::mutate(eid = as.integer(eid))
+
+analysis_dataset <- dataset %>%
+  dplyr::left_join(first_diagnosis, by = "eid") %>%
+  dplyr::left_join(prescriptions,   by = "eid")
+```
+
+See `manage_dataset.R` Step 7 for `left_join`, `inner_join`, and count + join
+options depending on your study design.
+
+---
+
+## Renaming and recoding
+
+After merging, column names are still p-coded (`p31`, `p53_i0`, etc.). Rename
+before analysis. See `_ignore/manage_dataset.R` for `rename_variables()` and
+`recode_variables()` templates covering sex, ethnicity, smoking, physical
+activity, and age at baseline.
+
+Always run `glimpse()` on the **merged** dataset after renaming — not just on
+the inputs. Joining can silently change column types.
+
+---
+
+## UKB built-in ICD-10 first occurrence
+
+UKB provides pre-computed first-occurrence ICD-10 fields from HES:
+
+- **Field 41270** — all ICD-10 diagnoses (all episodes, repeated)
+- **Field 41280** — date of each diagnosis in Field 41270 (index-matched — yes, there is a date)
+- **Field 41202** — first occurrence ICD-10, main position only
+- **Field 41204** — first occurrence ICD-10, secondary position
+
+Look these up on the [UK Biobank Data Showcase](https://biobank.ndph.ox.ac.uk/showcase/).
+
+**Key limitation: HES records only.** For conditions commonly diagnosed in
+primary care (hypertension, depression, most chronic conditions), Field 41270
+alone substantially undercounts cases compared to combining GP and HES sources.
